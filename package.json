@@ -1,0 +1,17 @@
+{
+  "name": "pg-swag",
+  "module": "index.js",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "cron-parser": "^4.9.0",
+    "iso8601-duration": "^2.1.2",
+    "p-map": "^7.0.2",
+    "pg-promise": "^11.9.0"
+  }
+}
