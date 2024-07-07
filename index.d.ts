@@ -21,11 +21,11 @@ export class Swag {
     constructor(connectionConfig: Parameters<typeof pgp>[0]);
     db: pgPromise.IDatabase<{}, import("pg-promise/typescript/pg-subset.js").IClient>;
     initialized: boolean;
-    /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: () => Promise<void | null> }>} */
+    /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: (force?: boolean) => Promise<void | null> }>} */
     workers: Record<string, {
         batcherId: Timer;
         flushId: Timer;
-        flush: () => Promise<void | null>;
+        flush: (force?: boolean) => Promise<void | null>;
     }>;
     workerId: `${string}-${string}-${string}-${string}-${string}`;
     /**
@@ -69,7 +69,7 @@ export class Swag {
      * Creates a handler for a given queue that receives the job information.
      * @param {string} queue The type of job to listen for.
      * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>} handler The function to run when a job is received.
-     * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number, lockPeriod?: `${number} ${'minutes' | 'seconds'}` }} [options]
+     * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number, lockPeriod?: `${number} ${'minutes' | 'seconds'}`, flushPeriod?: number  }} [options]
      *
      * @example Sending a scheduled email
      * ```
@@ -78,7 +78,7 @@ export class Swag {
      *  await sendEmail(address, subject, body);
      * })
      * ```
-     * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>) => void }}
+     * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>) => void}}
      */
     on(queue: string, handler: (job: import("./swag.d.ts").Job) => void | null | undefined | {
         expression: string;
@@ -89,6 +89,7 @@ export class Swag {
         concurrentJobs?: number;
         pollingPeriod?: number;
         lockPeriod?: `${number} ${"minutes" | "seconds"}`;
+        flushPeriod?: number;
     }): {
         onError: (handler: (err: any, job: import("./swag.d.ts").Job) => void | null | undefined | {
             expression: string;

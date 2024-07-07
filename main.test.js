@@ -51,7 +51,8 @@ const runJob = function ({ times, tryFor }) {
     }, {
       // Massively reduce the polling period to make the test run faster
       pollingPeriod: 100,
-      lockPeriod: '2 seconds'
+      lockPeriod: '1 seconds',
+      flushPeriod: 100
     }).onError(onError)
   })
 }
@@ -133,7 +134,9 @@ When I schedule a job with name {name} to run at {expression}
 Then I should see the job run {times}`
 
 /**
- * @test { queue: 'Poisoned-Cancel', name: 'Date-Based', expression: '2020-01-01', failures: 3, cancelAfter: 2, tryFor: 12000 } resolves
+ * @test { queue: 'Poisoned-Cancel', name: 'Date-Based', expression: '2020-01-01', failures: 3, cancelAfter: 2, tryFor: 6000 } resolves
+ *
+ * This test checks that local onError is working, as well as the return behavior of the job
  */
 export const CancelAfterTest = Scenario`
 Given a queue {queue}
@@ -144,7 +147,9 @@ And I try to run the job
 Then I should not see the job in the table`
 
 /**
- * @test { queue: 'Poisoned-Cancel-2', name: 'Date-Based', expression: '2020-01-01', failures: 3, cancelAfter: 2, tryFor: 12000 } resolves
+ * @test { queue: 'Poisoned-Cancel-2', name: 'Date-Based', expression: '2020-01-01', failures: 3, cancelAfter: 2, tryFor: 6000 } resolves
+ *
+ * This test checks if global onError is working
  */
 export const CancelAfterGlobalTest = Scenario`
 Given a queue {queue}
@@ -152,4 +157,14 @@ And I want the job to fail {failures}
 And I want it to cancel globally after {cancelAfter}
 When I schedule a job with name {name} to run at {expression}
 And I try to run the job
+Then I should not see the job in the table`
+
+/**
+ * @test { queue: 'Non-Existent', name: 'Non-Existent', expression: 'cancel' } resolves
+ *
+ * This test tries to ensure bad jobs are not scheduled
+ */
+export const ScheduleUnschedulable = Scenario`
+Given a queue {queue}
+When I schedule a job with name {name} to run at {expression}
 Then I should not see the job in the table`

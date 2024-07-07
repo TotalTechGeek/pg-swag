@@ -177,7 +177,7 @@ export class Swag {
    * Creates a handler for a given queue that receives the job information.
    * @param {string} queue The type of job to listen for.
    * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>} handler The function to run when a job is received.
-   * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number, lockPeriod?: `${number} ${'minutes' | 'seconds'}` }} [options]
+   * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number, lockPeriod?: `${number} ${'minutes' | 'seconds'}`, flushPeriod?: number  }} [options]
    *
    * @example Sending a scheduled email
    * ```
@@ -186,7 +186,7 @@ export class Swag {
    *  await sendEmail(address, subject, body);
    * })
    * ```
-   * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>) => void }}
+   * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>) => void}}
    */
   on (queue, handler, options) {
     this.#start()
@@ -219,7 +219,7 @@ export class Swag {
     }
 
     // Every second, try to flush the completed jobs to the database.
-    const flushId = setInterval(flush, 1000)
+    const flushId = setInterval(flush, options?.flushPeriod ?? 1000)
     this.workers[queue] = { batcherId, flushId, flush }
 
     return { onError: (errorHandler) => { processOptions.errorHandler = errorHandler } }
