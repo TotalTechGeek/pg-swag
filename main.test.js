@@ -25,12 +25,15 @@ When('I schedule a job with name {name} to run at {expression}', async function 
 
 Then('I should see the job run {times}', function ({ times }) {
   let count = 0
-  const failCount = 0
+  let failCount = 0
   if (!times) times = 1
   return new Promise((resolve, reject) => {
     swag.on(this.queue, job => {
       if (job.id === this.name) {
-        if (this.failures && failCount < this.failures) throw new Error('Job failed')
+        if (this.failures && failCount < this.failures) {
+          failCount++
+          throw new Error('Job failed')
+        }
         count++
         if (count === times) {
           this.job = job
