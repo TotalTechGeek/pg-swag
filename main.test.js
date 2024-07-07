@@ -7,7 +7,7 @@ const swag = new Swag({
 })
 
 /**
- * @test void returns
+ * @test void resolves
  */
 export async function Example () {
   await swag.schedule('test', 'Test', 'R1/PT1S', {})
