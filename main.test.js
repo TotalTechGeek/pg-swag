@@ -25,7 +25,7 @@ Then('I should see the job run', function () {
       else reject(new Error('Somehow got a different job'))
     }, {
       // Massively reduce the polling period to make the test run faster
-      pollingPeriod: 250
+      pollingPeriod: 100
     })
   })
 })
@@ -36,4 +36,13 @@ Then('I should see the job run', function () {
 export const Once = Scenario`
 Given a topic {topic}
 When I schedule a job with name {name} to run at {expression}
+Then I should see the job run`
+
+/**
+ * @test { topic: 'Test', name: 'Joe', expression: 'R2/PT1S' } resolves
+ */
+export const Twice = Scenario`
+Given a topic {topic}
+When I schedule a job with name {name} to run at {expression}
+Then I should see the job run
 Then I should see the job run`
