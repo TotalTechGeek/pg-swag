@@ -84,8 +84,8 @@ When I cancel all jobs in the queue
 Then I should not see the job in the table`
 
 /**
- * @test { queue: 'Test', name: 'Date-Based', expression: '2020-01-01', times: 1 } resolves
- * @test { queue: 'Test', name: 'Non-Repeating-Schedule', expression: 'R0/PT1S', times: 1 } resolves
+ * @test { queue: 'Unrepeatable', name: 'Date-Based', expression: '2020-01-01', times: 1 } resolves
+ * @test { queue: 'Unrepeatable', name: 'Non-Repeating-Schedule', expression: 'R0/PT1S', times: 1 } resolves
  *
  * This test assumes the inputs are non-repeating schedules / dates, some expression that would not reschedule,
  * but would run once.
