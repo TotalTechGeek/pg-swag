@@ -109,7 +109,7 @@ export class Swag {
     schema = null,
     table = 'jobs'
   } = {}) {
-    this.pgp = pgPromise({ schema })
+    this.pgp = pgPromise({ ...(schema && { schema }) })
     this.db = this.pgp(connectionConfig)
     this.initialized = false
     /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: (force?: boolean) => Promise<void | null> }>} */
