@@ -133,7 +133,7 @@ export class Swag {
    *
     * @param {string} queue - The name of the queue to schedule the job in.
     * @param {string} id - The unique identifier for the job.
-    * @param {string} expression The expression to use for scheduling the job.
+    * @param {string | Date} expression The expression to use for scheduling the job.
     * @param {any} data - The data to pass to the handler when the job is run.
     * Can be either a cron expression or a repeating ISO 8601 interval expression.
     * For example, to run every 3 days, use 'R/2012-10-01T00:00:00Z/P3D'.
@@ -160,6 +160,7 @@ export class Swag {
     */
   async schedule (queue, id, expression, data) {
     await this.#start()
+    if (expression instanceof Date) expression = expression.toISOString()
     const nextRun = nextTime(expression)
     if (!nextRun) return
     await this.db.none(`
