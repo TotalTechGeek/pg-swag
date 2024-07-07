@@ -1,9 +1,8 @@
 // @ts-check
-
 import pgPromise from 'pg-promise'
 import crypto from 'crypto'
 import pMap from 'p-map'
-import { nextTime } from './helpers'
+import { nextTime } from './helpers.js'
 
 const pgp = pgPromise({ schema: 'pgswag' })
 
@@ -107,7 +106,6 @@ export class Swag {
      * @param {import('pg').ConnectionConfig} config
      */
   constructor (config) {
-    // @ts-expect-error - Some issue with the connection config type.
     this.db = pgp(config)
     this.initialized = false
     /** @type {Record<string, { batcherId: Timer, flushId: Timer }>} */

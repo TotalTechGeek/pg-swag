@@ -1,7 +1,11 @@
 {
     "editor.codeActionsOnSave": {
-        "source.fixAll": true 
+        "source.fixAll": "explicit"
     },
     "standard.autoFixOnSave": true,
     "standard.enable": true,
+    "standard.validate": [
+        "javascript",
+        "typescript",
+    ]
 }
