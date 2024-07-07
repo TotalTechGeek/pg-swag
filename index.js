@@ -108,7 +108,7 @@ export class Swag {
   constructor (connectionConfig) {
     this.db = pgp(connectionConfig)
     this.initialized = false
-    /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: () => void }>} */
+    /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: () => Promise<void | null> }>} */
     this.workers = {}
     this.workerId = crypto.randomUUID()
   }
@@ -212,9 +212,9 @@ export class Swag {
       processBatch(this.db, this.workerId, queue, handler, completed, processOptions).finally(() => { active = false })
     }, processOptions.pollingPeriod)
 
-    const flush = () => {
+    const flush = async () => {
       if (!completed.length) return
-      this.db.tx(async t => t.none(generateFlush(queue, completed)))
+      return this.db.tx(async t => t.none(generateFlush(queue, completed)))
     }
 
     // Every second, try to flush the completed jobs to the database.
@@ -236,11 +236,11 @@ export class Swag {
    * This stops the worker for the specified queue
    * @param {string} queue
    */
-  stop (queue) {
+  async stop (queue) {
     const worker = this.workers[queue]
     if (!worker) return
     // Force a flush before stopping
-    worker.flush()
+    await worker.flush()
     clearInterval(worker.batcherId)
     clearInterval(worker.flushId)
     delete this.workers[queue]

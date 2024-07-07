@@ -21,10 +21,11 @@ export class Swag {
     constructor(connectionConfig: Parameters<typeof pgp>[0]);
     db: pgPromise.IDatabase<{}, import("pg-promise/typescript/pg-subset.js").IClient>;
     initialized: boolean;
-    /** @type {Record<string, { batcherId: Timer, flushId: Timer }>} */
+    /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: () => Promise<void | null> }>} */
     workers: Record<string, {
         batcherId: Timer;
         flushId: Timer;
+        flush: () => Promise<void | null>;
     }>;
     workerId: `${string}-${string}-${string}-${string}-${string}`;
     /**
@@ -113,7 +114,7 @@ export class Swag {
      * This stops the worker for the specified queue
      * @param {string} queue
      */
-    stop(queue: string): void;
+    stop(queue: string): Promise<void>;
     #private;
 }
 import pgPromise from 'pg-promise';
