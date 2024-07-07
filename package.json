@@ -2,7 +2,25 @@
   "name": "pg-swag",
   "module": "index.js",
   "type": "module",
-  "version": "0.0.2",
+  "version": "0.0.3",
+  "description": "A distributed scheduler with a grin.",
+  "keywords": ["pg", "scheduler", "scheduling", "distributed", "postgres", "schedules", "jobs"],
+  "license": "MIT",
+  "contributors": [
+    {
+      "name": "Jesse Daniel Mitchell",
+      "email": "jesse.daniel.mitchell@gmail.com",
+      "url": "https://github.com/TotalTechGeek"
+    },
+    {
+      "email": "kevinxtung@gmail.com",
+      "name": "Kevin Tung",
+      "url": "https://github.com/kevinxtung"
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/TotalTechGeek/pg-swag"
+  },
   "devDependencies": {
     "@eslint/js": "^9.6.0",
     "@types/bun": "latest",
