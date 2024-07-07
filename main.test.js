@@ -1,13 +1,8 @@
-import { Swag, cancelAfter } from './index.js'
+import { cancelAfter } from './index.js'
 import { Steps } from 'pineapple'
+import { swag } from './setup.test.js'
 
 const { Given, When, Then, Scenario } = Steps()
-
-const swag = new Swag({
-  password: 'postgres',
-  user: 'postgres',
-  host: 'localhost'
-})
 
 Given('a queue {queue}', async function ({ queue }) {
   this.queue = queue
