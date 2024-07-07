@@ -16,9 +16,14 @@ export function cancelAfter(num: number): (_err: any, job: import("./swag.d.ts")
  */
 export class Swag {
     /**
-     * @param {Parameters<typeof pgp>[0]} connectionConfig
+     * @param {Parameters<typeof this.pgp>[0]} connectionConfig
+     * @param {{ schema?: string | null, table?: string }} [tableOptions]
      */
-    constructor(connectionConfig: Parameters<typeof pgp>[0]);
+    constructor(connectionConfig: Parameters<typeof this.pgp>[0], { schema, table }?: {
+        schema?: string | null;
+        table?: string;
+    });
+    pgp: pgPromise.IMain<{}, import("pg-promise/typescript/pg-subset.js").IClient>;
     db: pgPromise.IDatabase<{}, import("pg-promise/typescript/pg-subset.js").IClient>;
     initialized: boolean;
     /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: (force?: boolean) => Promise<void | null> }>} */
@@ -28,6 +33,8 @@ export class Swag {
         flush: (force?: boolean) => Promise<void | null>;
     }>;
     workerId: `${string}-${string}-${string}-${string}-${string}`;
+    schema: string;
+    table: pgPromise.TableName;
     /**
      * Schedules a job to run either at a specific time or on a repeating interval.
      *
@@ -119,5 +126,3 @@ export class Swag {
     #private;
 }
 import pgPromise from 'pg-promise';
-declare const pgp: pgPromise.IMain<{}, import("pg-promise/typescript/pg-subset.js").IClient>;
-export {};

@@ -165,7 +165,7 @@ export class Swag {
     await this.db.none(`
       insert into $1 (queue, id, run_at, data, expression)
       values ($2, $3, $4, $5, $6)
-      on conflict (queue, id) do update set data = $4, expression = $5
+      on conflict (queue, id) do update set data = $5, expression = $6
     `, [this.table, queue, id, nextRun, data, expression])
   }
 
