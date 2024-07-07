@@ -200,6 +200,7 @@ export class Swag {
       batchSize: 100,
       concurrentJobs: 10,
       pollingPeriod: 15000,
+      flushPeriod: 1000,
       lockPeriod: '1 minutes',
       swag: this,
       ...options
@@ -218,8 +219,8 @@ export class Swag {
       return this.db.tx(async t => t.none(generateFlush(queue, completed)))
     }
 
-    // Every second, try to flush the completed jobs to the database.
-    const flushId = setInterval(flush, options?.flushPeriod ?? 1000)
+    // On the flush interval, flush the completed jobs
+    const flushId = setInterval(flush, processOptions.flushPeriod)
     this.workers[queue] = { batcherId, flushId, flush }
 
     return { onError: (errorHandler) => { processOptions.errorHandler = errorHandler } }
