@@ -76,7 +76,6 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
  */
 function generateFlush (queue, completed) {
   const query = completed.map(({ id, nextRun, expression }) => {
-    console.log(completed)
     if (nextRun === null) {
       return pgp.as.format(`
         delete from pgswag.jobs

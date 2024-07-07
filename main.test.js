@@ -35,7 +35,7 @@ Then('I should see the job run {times}', function ({ times }) {
 })
 
 /**
- * @test { topic: 'Test', name: 'Joe', expression: 'R0/PT1S', times: 1 } resolves
+ * @test { topic: 'Test', name: 'Joe', expression: '2020-01-01', times: 1 } resolves
  * @test { topic: 'Test', name: 'Jim', expression: 'R/PT1S', times: 2 } resolves
  */
 export const SimpleRun = Scenario`
