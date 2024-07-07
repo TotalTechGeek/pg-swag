@@ -111,3 +111,60 @@ The main index for fetching tasks is on `queue` and `greatest(run_at, locked_unt
 We also have a unique index on `queue` and `id` to ensure that tasks are not duplicated, and make it efficient to update & delete tasks.
 
 **Note:** In the future, it might be wise for us to automatically handle partitioning the table as different queues are introduced and such. It does not at the moment, however, we do not anticipate this being a problem for most users. It should be reasonably performant for hundreds of thousands of tasks (your bottleneck will likely not be the scheduler).
+
+### Schedule Configuration
+
+When setting up a reader for a queue, you can pass in a configuration object to customize the behavior of the reader. The following options are available:
+
+Option | Description | Default
+-- | -- | --
+batchSize | The number of tasks to fetch at a time | 100
+concurrentJobs | The number of tasks to run concurrently | 10
+pollingPeriod | The amount of time to wait between polling for tasks | 15000
+flushPeriod | The amount of time before writing finished tasks to the database | 1000
+lockPeriod | The amount of time to lock a task for | '1 minutes'
+
+*Warning*: Due to some author laziness, `lockPeriod` is different from the other periods represented, this is because Postgres supports `interval` types, and we have not thrown in a parser for the other options quite yet. Soon we may rectify this.
+
+### Error Handling
+
+You might notice that the module does not have an option like `maxAttempts`. This is because we believe that the error handling should be done in the task (or its error handler) itself. If you want to retry a task, you can simply throw an error, and the task will be retried.
+
+You can also return an object from a job to modify certain behaviors. For example, you can return `{ expression: 'cancel' }` to cancel the task.
+
+The handler will receive the number of attempts that have been made, and you can use this to determine if you should retry the task.
+
+```javascript
+swag.on('email', async job => {
+    if (job.attempts > 3) return { expression: 'cancel' }
+    // ...
+})
+```
+
+If you wanted, you could shift this behavior into the error handler for a queue,
+
+```javascript
+swag.on('email', async job => {
+    // ...
+}).onError(async (err, job) => {
+    if (job.attempts > 3) return { expression: 'cancel' }
+})
+```
+
+Or apply it globally, for all queues,
+
+```javascript
+swag.onError(async (err, job) => {
+    if (job.attempts > 3) return { expression: 'cancel' }
+})
+```
+
+We've provided a utility function to make this simpler:
+
+```javascript
+import { cancelAfter, Swag } from 'pg-swag'
+// ... 
+Swag.onError(cancelAfter(3))
+```
+
+However, we STRONGLY advise that you go beyond using `cancelAfter` and write some more sophisticated error handling logic, so that you can communicate to the user (or your developers) what went wrong.
