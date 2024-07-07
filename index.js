@@ -111,7 +111,7 @@ export class Swag {
   constructor (connectionConfig) {
     this.db = pgp(connectionConfig)
     this.initialized = false
-    /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: () => Promise<void | null> }>} */
+    /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: (force?: boolean) => Promise<void | null> }>} */
     this.workers = {}
     this.workerId = crypto.randomUUID()
   }
@@ -215,7 +215,8 @@ export class Swag {
       processBatch(this.db, this.workerId, queue, handler, completed, processOptions).finally(() => { active = false })
     }, processOptions.pollingPeriod)
 
-    const flush = async () => {
+    const flush = async (force) => {
+      if (force) while (active) await new Promise(resolve => setTimeout(resolve, 100))
       if (!completed.length) return
       return this.db.tx(async t => t.none(generateFlush(queue, completed)))
     }
@@ -242,10 +243,11 @@ export class Swag {
   async stop (queue) {
     const worker = this.workers[queue]
     if (!worker) return
-    // Force a flush before stopping
-    await worker.flush()
     clearInterval(worker.batcherId)
     clearInterval(worker.flushId)
+
+    // Force a flush before stopping
+    await worker.flush(true)
     delete this.workers[queue]
   }
 }
