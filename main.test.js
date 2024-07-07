@@ -50,8 +50,10 @@ Then('I should not see the job in the table', async function () {
 })
 
 /**
- * @test { queue: 'Test', name: 'Joe', expression: '2020-01-01', times: 1 } resolves
- * @test { queue: 'Test', name: 'Jim', expression: 'R/PT1S', times: 2 } resolves
+ * @test { queue: 'Test', name: 'Date-Based', expression: '2020-01-01', times: 1 } resolves
+ * @test { queue: 'Test', name: 'Repeating-Schedule', expression: 'R/PT1S', times: 2 } resolves
+ *
+ * This test is checking that jobs are scheduled and run as expected
  */
 export const SimpleRun = Scenario`
 Given a queue {queue}
@@ -59,7 +61,9 @@ When I schedule a job with name {name} to run at {expression}
 Then I should see the job run {times}`
 
 /**
- * @test { queue: 'Test', name: 'Joe', expression: '2020-01-01' } resolves
+ * @test { queue: 'Test', name: 'Date-Based', expression: '2020-01-01' } resolves
+ *
+ * This test is just checking that jobs are removed from the queue when cancelled
  */
 export const CancelJob = Scenario`
 Given a queue {queue}
@@ -68,10 +72,25 @@ When I cancel the job
 Then I should not see the job in the table`
 
 /**
- * @test { queue: 'Test', name: 'Joe', expression: '2020-01-01' } resolves
+ * @test { queue: 'Test', name: 'Date-Based', expression: '2020-01-01' } resolves
+ *
+ * This test is just checking that jobs are removed from the queue when all are cancelled
  */
 export const CancelAllJobs = Scenario`
 Given a queue {queue}
 When I schedule a job with name {name} to run at {expression}
 When I cancel all jobs in the queue
+Then I should not see the job in the table`
+
+/**
+ * @test { queue: 'Test', name: 'Date-Based', expression: '2020-01-01', times: 1 } resolves
+ * @test { queue: 'Test', name: 'Non-Repeating-Schedule', expression: 'R0/PT1S', times: 1 } resolves
+ *
+ * This test assumes the inputs are non-repeating schedules / dates, some expression that would not reschedule,
+ * but would run once.
+ */
+export const UnrepeatableJob = Scenario`
+Given a queue {queue}
+When I schedule a job with name {name} to run at {expression}
+Then I should see the job run {times}
 Then I should not see the job in the table`
