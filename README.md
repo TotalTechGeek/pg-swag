@@ -116,6 +116,17 @@ We also have a unique index on `queue` and `id` to ensure that tasks are not dup
 
 **Note:** In the future, it might be wise for us to automatically handle partitioning the table as different queues are introduced and such. It does not at the moment, however, we do not anticipate this being a problem for most users. It should be reasonably performant for hundreds of thousands of tasks (your bottleneck will likely not be the scheduler).
 
+### Class Configuration
+
+When creating a new instance of the scheduler, there are two main options to pass in:
+
+Option | Description | Default
+-- | -- | --
+Connection Configuration | [The configuration for the Postgres connection](https://github.com/vitaly-t/pg-promise/wiki/Connection-Syntax) | {}
+Table Configuration | { schema?: null \| string, table?: string } | { table: 'jobs', schema: null }
+
+By default, it will create a table called `jobs` in the public schema. If you want to use a different schema or table name, you can pass it in as an option.
+
 ### Schedule Configuration
 
 When setting up a reader for a queue, you can pass in a configuration object to customize the behavior of the reader. The following options are available:
