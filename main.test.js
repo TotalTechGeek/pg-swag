@@ -33,6 +33,8 @@ Then('I should see the job run {times}', function ({ times }) {
       // Massively reduce the polling period to make the test run faster
       pollingPeriod: 100
     })
+  }).finally(async () => {
+    await swag.stop(this.queue)
   })
 })
 
