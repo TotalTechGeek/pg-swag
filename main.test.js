@@ -1,5 +1,4 @@
-import { Swag } from './index.js'
-
+import { Swag, cancelAfter } from './index.js'
 import { Steps } from 'pineapple'
 
 const { Given, When, Then, Scenario } = Steps()
@@ -18,18 +17,24 @@ Given('I want the job to fail {failures}', async function ({ failures }) {
   this.failures = failures
 })
 
+Given('That I want it to cancel after {cancelAfter}', function ({ cancelAfter }) {
+  this.cancelAfter = cancelAfter
+})
+
 When('I schedule a job with name {name} to run at {expression}', async function ({ name, expression }) {
   await swag.schedule(this.queue, name, expression, {})
   this.name = name
 })
 
-Then('I should see the job run {times}', function ({ times }) {
+const runJob = function ({ times, tryFor }) {
   let count = 0
   let failCount = 0
-  if (!times) times = 1
+
+  const onError = this.cancelAfter ? cancelAfter(this.cancelAfter) : () => {}
+
   return new Promise((resolve, reject) => {
+    if (tryFor) setTimeout(() => resolve(null), tryFor)
     swag.on(this.queue, job => {
-      console.log('job seen ', job)
       if (this.failures && failCount++ < this.failures) throw new Error('Job failed')
       if (job.id === this.name) {
         count++
@@ -42,9 +47,13 @@ Then('I should see the job run {times}', function ({ times }) {
       // Massively reduce the polling period to make the test run faster
       pollingPeriod: 100,
       lockPeriod: '3 seconds'
-    })
+    }).onError(onError)
   })
-})
+}
+
+// These two are the same code for convenience
+Then('I should see the job run {times}', runJob)
+When('I try to run the job', runJob)
 
 When('I cancel the job', async function () {
   await swag.remove(this.queue, this.name)
@@ -117,3 +126,14 @@ Given a queue {queue}
 And I want the job to fail {failures}
 When I schedule a job with name {name} to run at {expression}
 Then I should see the job run {times}`
+
+/**
+ * @test { queue: 'Poisoned-Cancel', name: 'Date-Based', expression: '2020-01-01', failures: 3, cancelAfter: 2, tryFor: 25000 } resolves
+ */
+export const CancelAfterTest = Scenario`
+Given a queue {queue}
+And I want the job to fail {failures}
+And That I want it to cancel after {cancelAfter}
+When I schedule a job with name {name} to run at {expression}
+And I try to run the job
+Then I should not see the job in the table`

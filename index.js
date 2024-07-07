@@ -49,12 +49,9 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
       try {
         result = await handler(job) ?? true
       } catch (e) {
-        console.log(e)
         if (options.swag.globalErrorHandler) result = await options.swag.globalErrorHandler(e, job)
         if (options.errorHandler) result = await options.errorHandler(e, job)
       }
-
-      console.log(result)
 
       if (result) {
         let nextExpression = job.expression
@@ -69,7 +66,6 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
       }
     }, { concurrency: options.concurrentJobs })
   } while (jobs.length === options.batchSize)
-  console.log('exiting')
 }
 
 /**
