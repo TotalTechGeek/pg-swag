@@ -103,10 +103,9 @@ function generateFlush (queue, completed) {
  */
 export class Swag {
   /**
-     * @param {import('pg').ConnectionConfig} config
-     */
+   * @param {Parameters<typeof pgp>[0]} config
+   */
   constructor (config) {
-    // @ts-expect-error - Some issue with the connection config type.
     this.db = pgp(config)
     this.initialized = false
     /** @type {Record<string, { batcherId: Timer, flushId: Timer }>} */
