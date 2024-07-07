@@ -4,8 +4,6 @@ import crypto from 'crypto'
 import pMap from 'p-map'
 import { nextTime } from './helpers.js'
 
-const pgp = pgPromise({ schema: 'pgswag' })
-
 /**
  * Fetches a batch of jobs from the database and processes them,
  * this locks the jobs for a minute to prevent other workers from processing them.
@@ -27,19 +25,19 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
   do {
     jobs = await db.manyOrNone(`
         set enable_seqscan = off;
-        update pgswag.jobs
-        set locked_until = now() + interval $4, locked_by = $1, attempts = attempts + 1
+        update $1
+        set locked_until = now() + interval $5, locked_by = $2, attempts = attempts + 1
         where id in (
           select id
-          from pgswag.jobs
-          where queue = $2
+          from $1
+          where queue = $3
           and greatest(run_at, locked_until) <= now()
-          limit $3
+          limit $4
           for update skip locked
         )
-        and queue = $2
+        and queue = $3
         returning *;
-      `, [handlerId, queue, options.batchSize, options.lockPeriod])
+      `, [options.swag.table, handlerId, queue, options.batchSize, options.lockPeriod])
 
     if (!jobs.length) return
 
@@ -72,27 +70,28 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
  * Generates the query to update completed jobs
  * @param {string} queue
  * @param {{ id: string, nextRun: Date, expression: null | string }[]} completed
+ * @param {Swag} swag
  * @returns {string}
  */
-function generateFlush (queue, completed) {
+function generateFlush (queue, completed, swag) {
   const query = completed.map(({ id, nextRun, expression }) => {
     if (nextRun === null) {
-      return pgp.as.format(`
-        delete from pgswag.jobs
-        where queue = $2
-        and id = $1
-      `, [id, queue])
+      return swag.pgp.as.format(`
+        delete from $1
+        where queue = $3
+        and id = $2
+      `, [swag.table, id, queue])
     }
-    return pgp.as.format(`
-      update pgswag.jobs
-      set run_at = $1,
+    return swag.pgp.as.format(`
+      update $1
+      set run_at = $2,
         locked_until = null,
         locked_by = null,
         attempts = 0
-        ${expression ? ', expression = $4' : ''}
-      where queue = $3
-      and id = $2
-    `, [nextRun, id, queue, expression])
+        ${expression ? ', expression = $5' : ''}
+      where queue = $4
+      and id = $3
+    `, [swag.table, nextRun, id, queue, expression])
   }).join(';')
   completed.splice(0, completed.length)
   return query
@@ -103,23 +102,30 @@ function generateFlush (queue, completed) {
  */
 export class Swag {
   /**
-   * @param {Parameters<typeof pgp>[0]} connectionConfig
+   * @param {Parameters<typeof this.pgp>[0]} connectionConfig
+   * @param {{ schema?: string | null, table?: string }} [tableOptions]
    */
-  constructor (connectionConfig) {
-    this.db = pgp(connectionConfig)
+  constructor (connectionConfig, {
+    schema = null,
+    table = 'jobs'
+  } = {}) {
+    this.pgp = pgPromise({ schema })
+    this.db = this.pgp(connectionConfig)
     this.initialized = false
     /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: (force?: boolean) => Promise<void | null> }>} */
     this.workers = {}
     this.workerId = crypto.randomUUID()
+    this.schema = schema
+    this.table = new pgPromise.TableName({ table, ...(schema && { schema }) })
   }
 
   async #start () {
     if (this.initialized) return
     this.initialized = true
-    // await this.db.none('create schema if not exists pgswag')
-    await this.db.none('create table if not exists pgswag.jobs (queue text, id text, run_at timestamptz, data jsonb, expression text, locked_until timestamptz, locked_by text, attempts int default 0)')
-    await this.db.none('create index if not exists idx_jobs_queue_run_at on pgswag.jobs (queue, greatest(run_at, locked_until))')
-    await this.db.none('create unique index if not exists idx_jobs_queue_id on pgswag.jobs (queue, id)')
+    if (this.schema) await this.db.none('create schema if not exists $1:name', [this.schema])
+    await this.db.none('create table if not exists $1 (queue text, id text, run_at timestamptz, data jsonb, expression text, locked_until timestamptz, locked_by text, attempts int default 0)', [this.table])
+    await this.db.none('create index if not exists idx_jobs_queue_run_at on $1 (queue, greatest(run_at, locked_until))', [this.table])
+    await this.db.none('create unique index if not exists idx_jobs_queue_id on $1 (queue, id)', [this.table])
   }
 
   /**
@@ -157,10 +163,10 @@ export class Swag {
     const nextRun = nextTime(expression)
     if (!nextRun) return
     await this.db.none(`
-      insert into pgswag.jobs (queue, id, run_at, data, expression)
-      values ($1, $2, $3, $4, $5)
+      insert into $1 (queue, id, run_at, data, expression)
+      values ($2, $3, $4, $5, $6)
       on conflict (queue, id) do update set data = $4, expression = $5
-    `, [queue, id, nextRun, data, expression])
+    `, [this.table, queue, id, nextRun, data, expression])
   }
 
   /**
@@ -169,8 +175,8 @@ export class Swag {
     * @param {string} [id] - The unique identifier for the job.
     */
   async remove (queue, id) {
-    if (!id) return this.db.none('delete from pgswag.jobs where queue = $1', [queue])
-    return this.db.none('delete from pgswag.jobs where queue = $1 and id = $2', [queue, id])
+    if (!id) return this.db.none('delete from $1 where queue = $2', [this.table, queue])
+    return this.db.none('delete from $1 where queue = $2 and id = $3', [this.table, queue, id])
   }
 
   /**
@@ -216,7 +222,7 @@ export class Swag {
     const flush = async (force) => {
       if (force) while (active) await new Promise(resolve => setTimeout(resolve, 100))
       if (!completed.length) return
-      return this.db.tx(async t => t.none(generateFlush(queue, completed)))
+      return this.db.tx(async t => t.none(generateFlush(queue, completed, this)))
     }
 
     // On the flush interval, flush the completed jobs
