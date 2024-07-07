@@ -19,11 +19,16 @@ When('I schedule a job with name {name} to run at {expression}', async function 
 })
 
 Then('I should see the job run', function () {
-  return new Promise(resolve => swag.on(this.topic, resolve))
+  return new Promise((resolve, reject) => {
+    swag.on(this.topic, job => {
+      if (job.id === this.name) resolve()
+      else reject(new Error('Somehow got a different job'))
+    })
+  })
 })
 
 /**
- * @test { topic: 'Test', name: 'Joe', expression: 'R1/PT1S' } resolves @.id === 'Joe'
+ * @test { topic: 'Test', name: 'Joe', expression: 'R1/PT1S' } resolves
  */
 export const Once = Scenario`
 Given a topic {topic}
