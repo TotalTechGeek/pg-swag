@@ -39,7 +39,7 @@ When I schedule a job with name {name} to run at {expression}
 Then I should see the job run`
 
 /**
- * @test { topic: 'Test', name: 'Joe', expression: 'R2/PT1S' } resolves
+ * @test { topic: 'Test', name: 'Joe', expression: 'R/PT1S' } resolves
  */
 export const Twice = Scenario`
 Given a topic {topic}
