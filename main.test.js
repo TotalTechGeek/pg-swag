@@ -11,14 +11,19 @@ const swag = new Swag({
 
 Given('a queue {queue}', async function ({ queue }) {
   this.queue = queue
+  swag.onError(() => {})
 })
 
 Given('I want the job to fail {failures}', async function ({ failures }) {
   this.failures = failures
 })
 
-Given('That I want it to cancel after {cancelAfter}', function ({ cancelAfter }) {
+Given('I want it to cancel after {cancelAfter}', function ({ cancelAfter }) {
   this.cancelAfter = cancelAfter
+})
+
+Given('I want it to cancel globally after {cancelAfter}', function ({ cancelAfter: cA }) {
+  swag.onError(cancelAfter(cA))
 })
 
 When('I schedule a job with name {name} to run at {expression}', async function ({ name, expression }) {
@@ -46,7 +51,7 @@ const runJob = function ({ times, tryFor }) {
     }, {
       // Massively reduce the polling period to make the test run faster
       pollingPeriod: 100,
-      lockPeriod: '3 seconds'
+      lockPeriod: '2 seconds'
     }).onError(onError)
   })
 }
@@ -128,12 +133,23 @@ When I schedule a job with name {name} to run at {expression}
 Then I should see the job run {times}`
 
 /**
- * @test { queue: 'Poisoned-Cancel', name: 'Date-Based', expression: '2020-01-01', failures: 3, cancelAfter: 2, tryFor: 25000 } resolves
+ * @test { queue: 'Poisoned-Cancel', name: 'Date-Based', expression: '2020-01-01', failures: 3, cancelAfter: 2, tryFor: 12000 } resolves
  */
 export const CancelAfterTest = Scenario`
 Given a queue {queue}
 And I want the job to fail {failures}
-And That I want it to cancel after {cancelAfter}
+And I want it to cancel after {cancelAfter}
+When I schedule a job with name {name} to run at {expression}
+And I try to run the job
+Then I should not see the job in the table`
+
+/**
+ * @test { queue: 'Poisoned-Cancel-2', name: 'Date-Based', expression: '2020-01-01', failures: 3, cancelAfter: 2, tryFor: 12000 } resolves
+ */
+export const CancelAfterGlobalTest = Scenario`
+Given a queue {queue}
+And I want the job to fail {failures}
+And I want it to cancel globally after {cancelAfter}
 When I schedule a job with name {name} to run at {expression}
 And I try to run the job
 Then I should not see the job in the table`
