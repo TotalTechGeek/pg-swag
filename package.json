@@ -10,7 +10,8 @@
     "globals": "^15.8.0",
     "rollup": "^4.18.0",
     "run-script-os": "^1.1.6",
-    "ts-standard": "^12.0.2"
+    "ts-standard": "^12.0.2",
+    "eslint-config-standard": "^17.1.0"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
@@ -24,7 +25,8 @@
   "scripts": {
     "build": "run-script-os",
     "build:win32": "rm -rf dist && rollup index.js --file dist/cjs/index.js --format cjs --exports named && rollup index.js --file dist/esm/index.js --format esm && echo { \"type\": \"module\" } > dist/esm/package.json && echo { \"type\": \"commonjs\" } > dist/cjs/package.json && cd dist && standard --fix */*.js && tsc ../index.js --declaration --allowJs --emitDeclarationOnly --target ESNext --module NodeNext --skipLibCheck",
-    "build:default": "rm -rf dist && rollup index.js --file dist/cjs/index.js --format cjs --exports named && rollup index.js --file dist/esm/index.js --format esm && echo '{ \"type\": \"module\" }' > dist/esm/package.json && echo '{ \"type\": \"commonjs\" }' > dist/cjs/package.json && cd dist && standard --fix */*.js && tsc ../index.js --declaration --allowJs --emitDeclarationOnly --target ESNext --module NodeNext --skipLibCheck"
+    "build:default": "rm -rf dist && rollup index.js --file dist/cjs/index.js --format cjs --exports named && rollup index.js --file dist/esm/index.js --format esm && echo '{ \"type\": \"module\" }' > dist/esm/package.json && echo '{ \"type\": \"commonjs\" }' > dist/cjs/package.json && cd dist && standard --fix */*.js && tsc ../index.js --declaration --allowJs --emitDeclarationOnly --target ESNext --module NodeNext --skipLibCheck",
+    "test": "pineapple -i *.js"
   },
   "sideEffects": false,
   "exports": {

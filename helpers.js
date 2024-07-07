@@ -78,13 +78,11 @@ export function nextRepeatingISO (expression, from, after) {
   if (after && !(after instanceof Date)) after = new Date(after)
   let nextTime = new Date(from)
 
-  if (after) {
-    do {
-      nextTime = new Date(nextTime.getTime() + params.duration * 1000)
-      if (params.end && nextTime > params.end) return null
-    }
-    while (nextTime <= after)
+  do {
+    nextTime = new Date(nextTime.getTime() + params.duration * 1000)
+    if (params.end && nextTime > params.end) return null
   }
+  while (after && nextTime <= after)
 
   return nextTime
 }
@@ -110,7 +108,7 @@ export function nextCron (expression, from, after) {
   if (after && !(after instanceof Date)) after = new Date(after)
 
   let nextTime = interval.next().toDate()
-  if (after) while (nextTime <= after) nextTime = interval.next().toDate()
+  while (after && nextTime <= after) nextTime = interval.next().toDate()
 
   return nextTime
 }
