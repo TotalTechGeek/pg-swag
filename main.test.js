@@ -1,5 +1,5 @@
-// @ts-check
 import { Swag } from './index.js'
+
 import { Steps } from 'pineapple'
 
 const { Given, When, Then, Scenario } = Steps()
@@ -14,24 +14,33 @@ Given('a queue {queue}', async function ({ queue }) {
   this.queue = queue
 })
 
+Given('I want the job to fail {failures}', async function ({ failures }) {
+  this.failures = failures
+})
+
 When('I schedule a job with name {name} to run at {expression}', async function ({ name, expression }) {
-  // @ts-ignore
   await swag.schedule(this.queue, name, expression, {})
   this.name = name
 })
 
 Then('I should see the job run {times}', function ({ times }) {
   let count = 0
+  const failCount = 0
   if (!times) times = 1
   return new Promise((resolve, reject) => {
     swag.on(this.queue, job => {
       if (job.id === this.name) {
+        if (this.failures && failCount < this.failures) throw new Error('Job failed')
         count++
-        if (count === times) resolve(null)
+        if (count === times) {
+          this.job = job
+          resolve(job)
+        }
       } else reject(new Error('Somehow got a different job'))
     }, {
       // Massively reduce the polling period to make the test run faster
-      pollingPeriod: 100
+      pollingPeriod: 100,
+      lockPeriod: '3 seconds'
     })
   })
 })
@@ -95,3 +104,13 @@ Given a queue {queue}
 When I schedule a job with name {name} to run at {expression}
 Then I should see the job run {times}
 Then I should not see the job in the table`
+
+/**
+ * @test { queue: 'Test', name: 'Date-Based', expression: '2020-01-01', times: 1, failures: 1 } resolves @.job.attempts === 2
+ * @test { queue: 'Test', name: 'Date-Based-2', expression: '2020-01-01', times: 1, failures: 2 } resolves @.job.attempts === 3
+ */
+export const PoisonedJobsRecover = Scenario`
+Given a queue {queue}
+And I want the job to fail {failures}
+When I schedule a job with name {name} to run at {expression}
+Then I should see the job run {times}`

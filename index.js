@@ -53,8 +53,6 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
         if (options.errorHandler) result = await options.errorHandler(e, job)
       }
 
-      console.log(result)
-
       if (result) {
         let nextExpression = job.expression
         if (typeof result === 'object' && result?.expression) nextExpression = result.expression
@@ -77,7 +75,6 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
  * @returns {string}
  */
 function generateFlush (queue, completed) {
-  console.log(completed)
   const query = completed.map(({ id, nextRun, expression }) => {
     if (nextRun === null) {
       return pgp.as.format(`
