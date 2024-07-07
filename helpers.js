@@ -19,6 +19,7 @@ import cronParser from 'cron-parser'
  * @test 'R/2024-01-01/P10Y'
  * @test 'R0/P1D' returns get(@, 'repeats') === 0
  * @test 'R-1/P1D' returns get(@, 'repeats') === Infinity
+ * @test 'Yeet' throws
  */
 export function parseRepeatingISO (expression) {
   if (!expression) throw new Error('Needs an expression')
