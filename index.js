@@ -116,7 +116,7 @@ export class Swag {
   async #start () {
     if (this.initialized) return
     this.initialized = true
-    await this.db.none('create schema if not exists pgswag')
+    // await this.db.none('create schema if not exists pgswag')
     await this.db.none('create table if not exists pgswag.jobs (queue text, id text, run_at timestamptz, data jsonb, expression text, locked_until timestamptz, locked_by text, attempts int default 0)')
     await this.db.none('create index if not exists idx_jobs_queue_run_at on pgswag.jobs (queue, greatest(run_at, locked_until))')
     await this.db.none('create unique index if not exists idx_jobs_queue_id on pgswag.jobs (queue, id)')
