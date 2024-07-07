@@ -22,9 +22,6 @@ export async function Stress (num, under) {
         if (time < under) resolve()
         else reject(new Error(`Took ${time}ms to execute ${num} jobs`))
       }
-    }, {
-      pollingPeriod: 100,
-      flushPeriod: 100
     })
   })
 }
