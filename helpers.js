@@ -1,6 +1,6 @@
 // @ts-check
-import { parse as durationParse, toSeconds } from 'iso8601-duration';
-import cronParser from 'cron-parser';
+import { parse as durationParse, toSeconds } from 'iso8601-duration'
+import cronParser from 'cron-parser'
 
 /**
  * Parses recurring ISO8601 durations
@@ -20,47 +20,45 @@ import cronParser from 'cron-parser';
  * @test 'R0/P1D' returns get(@, 'repeats') === 0
  * @test 'R-1/P1D' returns get(@, 'repeats') === Infinity
  */
-export function parseRepeatingISO(expression) {
-	if (!expression) throw new Error('Needs an expression');
-	if (expression.startsWith('R')) {
-		const terms = expression.split('/');
-		const repeatsStr = terms[0].replace('R', '');
-		const repeats = repeatsStr === '0' ? 0 : Math.max(+repeatsStr, 0) || Infinity;
-		const start = terms.length > 2 ? new Date(terms[1]) : new Date();
-		const duration = toSeconds(durationParse(terms[terms.length - 1]));
-		let end = terms.length > 3 ? new Date(terms[2]) : null;
+export function parseRepeatingISO (expression) {
+  if (!expression) throw new Error('Needs an expression')
+  if (expression.startsWith('R')) {
+    const terms = expression.split('/')
+    const repeatsStr = terms[0].replace('R', '')
+    const repeats = repeatsStr === '0' ? 0 : Math.max(+repeatsStr, 0) || Infinity
+    const start = terms.length > 2 ? new Date(terms[1]) : new Date()
+    const duration = toSeconds(durationParse(terms[terms.length - 1]))
+    let end = terms.length > 3 ? new Date(terms[2]) : null
 
+    if (!end && repeats !== Infinity) {
+      end = new Date(start)
+      end.setSeconds(start.getSeconds() + duration * repeats)
+    }
 
+    return {
+      repeats,
+      start,
+      end,
+      duration
+    }
+  }
 
-		if (!end && repeats !== Infinity) {
-			end = new Date(start);
-			end.setSeconds(start.getSeconds() + duration * repeats);
-		}
-
-		return {
-			repeats,
-			start,
-			end,
-			duration,
-		};
-	}
-
-	throw new Error('Unrecognized Format for ISO Duration');
+  throw new Error('Unrecognized Format for ISO Duration')
 }
 
 /**
  * @param {string} expression
  */
-export function* repeatingISO(expression, omitStart = true) {
-	const params = parseRepeatingISO(expression);
+export function * repeatingISO (expression, omitStart = true) {
+  const params = parseRepeatingISO(expression)
 
-	let start = params.start;
+  let start = params.start
 
-	if (omitStart) start = new Date(start.getTime() + params.duration * 1000);
-	while (!params.end || start < params.end) {
-		yield start;
-		start = new Date(start.getTime() + params.duration * 1000);
-	}
+  if (omitStart) start = new Date(start.getTime() + params.duration * 1000)
+  while (!params.end || start < params.end) {
+    yield start
+    start = new Date(start.getTime() + params.duration * 1000)
+  }
 }
 
 /**
@@ -73,22 +71,23 @@ export function* repeatingISO(expression, omitStart = true) {
  * @param {string | Date} [after]
  * @returns {Date | null} The next time the expression will occur after the given time
  */
-export function nextRepeatingISO(expression, from, after) {
-	const params = parseRepeatingISO(expression);
+export function nextRepeatingISO (expression, from, after) {
+  const params = parseRepeatingISO(expression)
 
-	if (!from) return params.start;
-	if (after && !(after instanceof Date)) after = new Date(after);
-	let nextTime = new Date(from);
+  if (!from) return params.start
+  if (after && !(after instanceof Date)) after = new Date(after)
+  let nextTime = new Date(from)
 
-	do {
-		nextTime = new Date(nextTime.getTime() + params.duration * 1000);
-		if (params.end && nextTime > params.end) return null;
-	} while (after && nextTime <= after);
+  if (after) {
+    do {
+      nextTime = new Date(nextTime.getTime() + params.duration * 1000)
+      if (params.end && nextTime > params.end) return null
+    }
+    while (nextTime <= after)
+  }
 
-
-	return nextTime;
+  return nextTime
 }
-
 
 /**
  * Get the next time a cron expression will occur
@@ -99,32 +98,30 @@ export function nextRepeatingISO(expression, from, after) {
  * @param {string | Date} [from]
  * @param {string | Date} [after]
  */
-export function nextCron(expression, from, after) {
-	const options = {
-		currentDate: from ? new Date(from) : new Date(),
-		utc: true,
-	};
+export function nextCron (expression, from, after) {
+  const options = {
+    currentDate: from ? new Date(from) : new Date(),
+    utc: true
+  }
 
-	const interval = cronParser.parseExpression(expression, options);
+  const interval = cronParser.parseExpression(expression, options)
 
-	if (!from) return new Date();
-	if (after && !(after instanceof Date)) after = new Date(after);
+  if (!from) return new Date()
+  if (after && !(after instanceof Date)) after = new Date(after)
 
-	let nextTime = interval.next().toDate();
-	while (after && nextTime <= after) nextTime = interval.next().toDate();
+  let nextTime = interval.next().toDate()
+  if (after) while (nextTime <= after) nextTime = interval.next().toDate()
 
-	return nextTime;
+  return nextTime
 }
-
 
 /**
  * @test 'R5/2024-01-01/P1D'
  * @param {string} expression
  */
-export function testGenerateRepeatingISO(expression) {
-	return [...repeatingISO(expression)];
+export function testGenerateRepeatingISO (expression) {
+  return [...repeatingISO(expression)]
 }
-
 
 /**
  * Given a recurring ISO8601 Duration or a Cron Expression,
@@ -139,7 +136,7 @@ export function testGenerateRepeatingISO(expression) {
  *
  * - `[second] [minute] [hour] [day of month] [month] [day of week]`
  * - `0 0 *\/1 * * (every day at midnight)`
- * 
+ *
  * ### Just a Date
  * - `'2024-01-01'`
  * - `'2024-01-01T00:00:00.000Z'`
@@ -173,13 +170,13 @@ export function testGenerateRepeatingISO(expression) {
  * @test 'R0/P1D'
  * @test 'R0/2024-01-01/P1D'
  */
-export function nextTime(expression, from, after) {
-	if (!expression) return null;
-	if (expression === 'cancel') return null;
-	if (expression instanceof Date || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(expression) || /^\d{4}-\d{2}-\d{2}$/.test(expression)) {
-		if (from) return null;
-		return new Date(expression);
-	}
-	if (expression.startsWith('R')) return nextRepeatingISO(expression, from, after);
-	return nextCron(expression, from, after);
+export function nextTime (expression, from, after) {
+  if (!expression) return null
+  if (expression === 'cancel') return null
+  if (expression instanceof Date || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(expression) || /^\d{4}-\d{2}-\d{2}$/.test(expression)) {
+    if (from) return null
+    return new Date(expression)
+  }
+  if (expression.startsWith('R')) return nextRepeatingISO(expression, from, after)
+  return nextCron(expression, from, after)
 }

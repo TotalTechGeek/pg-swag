@@ -1,0 +1,7 @@
+{
+    "editor.codeActionsOnSave": {
+        "source.fixAll": true 
+    },
+    "standard.autoFixOnSave": true,
+    "standard.enable": true,
+}
