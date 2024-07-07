@@ -153,7 +153,7 @@ export class Swag {
     * If a job by the same ID already exists in the queue, it will be replaced.
     */
   async schedule (queue, id, expression, data) {
-    this.#start()
+    await this.#start()
     const nextRun = nextTime(expression)
     if (!nextRun) return
     await this.db.none(`
