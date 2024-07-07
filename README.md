@@ -2,6 +2,10 @@
 
 [![Coverage Status](https://coveralls.io/repos/github/TotalTechGeek/pg-swag/badge.svg?branch=main)](https://coveralls.io/github/TotalTechGeek/pg-swag?branch=main)
 
+<img src="https://i.imgur.com/Xio7kHx.png" alt="An elephant wearing sunglasses" width="250px" />
+
+
+
 Have you ever needed to run a task (emails, reports, cleanup) at a specific time, or on a recurring schedule? Have you ever had multiple processes you needed to distribute the workload between?
 
 PG Swag is a distributed scheduling library intended to simplify the process of scheduling tasks across one or more nodes, leveraging the Postgres database as a shared state.
