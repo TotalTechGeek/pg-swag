@@ -116,7 +116,7 @@ export class Swag {
     this.workers = {}
     this.workerId = crypto.randomUUID()
     this.schema = schema
-    this.table = new pgPromise.TableName({ table, ...(schema && { schema }) })
+    this.table = new this.pgp.helpers.TableName({ table, ...(schema && { schema }) })
   }
 
   async #start () {
