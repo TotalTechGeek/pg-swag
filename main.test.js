@@ -9,11 +9,11 @@ const swag = new Swag({
   host: 'localhost'
 })
 
-Given('a topic {topic}', async function (topic) {
+Given('a topic {topic}', async function ({ topic }) {
   this.topic = topic
 })
 
-When('I schedule a job with name {name} to run at {expression}', async function (name, expression) {
+When('I schedule a job with name {name} to run at {expression}', async function ({ name, expression }) {
   await swag.schedule(this.topic, name, expression, {})
   this.name = name
 })
@@ -23,6 +23,9 @@ Then('I should see the job run', function () {
     swag.on(this.topic, job => {
       if (job.id === this.name) resolve()
       else reject(new Error('Somehow got a different job'))
+    }, {
+      // Massively reduce the polling period to make the test run faster
+      pollingPeriod: 250
     })
   })
 })
