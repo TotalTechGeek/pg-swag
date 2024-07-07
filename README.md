@@ -88,3 +88,26 @@ We use the [cron-parser](https://www.npmjs.com/package/cron-parser) package to p
 #### Future Additions
 
 We are planning on adding support for more scheduling options, for example: "every sunrise" or "every 3 sunrises". If someone needs this, file an issue and we will prioritize it.
+
+### Technical Details
+
+In this package, jobs & schedules are one and the same; there is no distinction between the two, thus allowing us to leverage a single table design.
+
+The table structure is as follows
+
+Field | Description
+-- | --
+queue | The type of task you wish to perform
+id | An ID to represent the task
+run_at | Generated field to determine when the task should be run
+data | The data to be passed to the task
+expression | The scheduling expression
+locked_until | The time the task is locked until
+locked_by | The node that has locked the task
+attempts | The number of attempts that have been made to run the task
+
+The main index for fetching tasks is on `queue` and `greatest(run_at, locked_until)` to make it efficient to fetch tasks that are ready to be run.
+
+We also have a unique index on `queue` and `id` to ensure that tasks are not duplicated, and make it efficient to update & delete tasks.
+
+**Note:** In the future, it might be wise for us to automatically handle partitioning the table as different queues are introduced and such. It does not at the moment, however, we do not anticipate this being a problem for most users. It should be reasonably performant for hundreds of thousands of tasks (your bottleneck will likely not be the scheduler).
