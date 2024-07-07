@@ -16,9 +16,9 @@ export function cancelAfter(num: number): (_err: any, job: import("./swag.d.ts")
  */
 export class Swag {
     /**
-     * @param {Parameters<typeof pgp>[0]} config
+     * @param {Parameters<typeof pgp>[0]} connectionConfig
      */
-    constructor(config: Parameters<typeof pgp>[0]);
+    constructor(connectionConfig: Parameters<typeof pgp>[0]);
     db: pgPromise.IDatabase<{}, import("pg-promise/typescript/pg-subset.js").IClient>;
     initialized: boolean;
     /** @type {Record<string, { batcherId: Timer, flushId: Timer }>} */

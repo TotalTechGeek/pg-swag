@@ -29,7 +29,7 @@
     "build": "run-script-os",
     "build:win32": "rm -rf dist && rollup index.js --file dist/cjs/index.js --format cjs --exports named && rollup index.js --file dist/esm/index.js --format esm && echo { \"type\": \"module\" } > dist/esm/package.json && echo { \"type\": \"commonjs\" } > dist/cjs/package.json && cd dist && exitzero standard --fix */*.js && tsc ../index.js --declaration --allowJs --emitDeclarationOnly --target ESNext --module NodeNext --skipLibCheck",
     "build:default": "rm -rf dist && rollup index.js --file dist/cjs/index.js --format cjs --exports named && rollup index.js --file dist/esm/index.js --format esm && echo '{ \"type\": \"module\" }' > dist/esm/package.json && echo '{ \"type\": \"commonjs\" }' > dist/cjs/package.json && cd dist && exitzero standard --fix */*.js && tsc ../index.js --declaration --allowJs --emitDeclarationOnly --target ESNext --module NodeNext --skipLibCheck",
-    "test": "c8 --reporter=text --reporter=lcov pineapple -i *.js"
+    "test": "c8 --reporter=text --reporter=lcov pineapple -i *.js --timeout 60000"
   },
   "sideEffects": false,
   "exports": {

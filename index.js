@@ -103,10 +103,10 @@ function generateFlush (queue, completed) {
  */
 export class Swag {
   /**
-   * @param {Parameters<typeof pgp>[0]} config
+   * @param {Parameters<typeof pgp>[0]} connectionConfig
    */
-  constructor (config) {
-    this.db = pgp(config)
+  constructor (connectionConfig) {
+    this.db = pgp(connectionConfig)
     this.initialized = false
     /** @type {Record<string, { batcherId: Timer, flushId: Timer }>} */
     this.workers = {}
