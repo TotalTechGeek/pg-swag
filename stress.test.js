@@ -2,7 +2,7 @@ import { swag } from './setup.test.js'
 
 /**
  * @test 10000, 30000 resolves
- * @test 50000, 30000 resolves
+ * TODO: Build a more robust suite of tests with more control over resources
  */
 export async function Stress (num, under) {
   const now = new Date()
