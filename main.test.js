@@ -33,8 +33,6 @@ Then('I should see the job run {times}', function ({ times }) {
       // Massively reduce the polling period to make the test run faster
       pollingPeriod: 100
     })
-  }).finally(async () => {
-    await swag.stop(this.queue)
   })
 })
 
@@ -47,6 +45,7 @@ When('I cancel all jobs in the queue', async function () {
 })
 
 Then('I should not see the job in the table', async function () {
+  await swag.stop(this.queue) // force a flush
   const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
   if (results.length) throw new Error('Job still exists')
 })
