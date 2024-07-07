@@ -10,6 +10,7 @@
     "eslint": "9.x",
     "eslint-config-standard": "^17.1.0",
     "globals": "^15.8.0",
+    "pineapple": "^0.21.2",
     "rollup": "^4.18.0",
     "run-script-os": "^1.1.6",
     "ts-standard": "^12.0.2"
