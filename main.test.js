@@ -29,11 +29,9 @@ Then('I should see the job run {times}', function ({ times }) {
   if (!times) times = 1
   return new Promise((resolve, reject) => {
     swag.on(this.queue, job => {
+      console.log('job seen ', job)
       if (job.id === this.name) {
-        if (this.failures && failCount < this.failures) {
-          failCount++
-          throw new Error('Job failed')
-        }
+        if (this.failures && failCount++ < this.failures) throw new Error('Job failed')
         count++
         if (count === times) {
           this.job = job
@@ -111,6 +109,8 @@ Then I should not see the job in the table`
 /**
  * @test { queue: 'Test', name: 'Date-Based', expression: '2020-01-01', times: 1, failures: 1 } resolves @.job.attempts === 2
  * @test { queue: 'Test', name: 'Date-Based-2', expression: '2020-01-01', times: 1, failures: 2 } resolves @.job.attempts === 3
+ *
+ * This test is checking that when jobs fail, they are retried and the attempts are incremented
  */
 export const PoisonedJobsRecover = Scenario`
 Given a queue {queue}
