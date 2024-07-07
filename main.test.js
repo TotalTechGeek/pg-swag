@@ -46,7 +46,7 @@ When('I cancel all jobs in the queue', async function () {
 
 Then('I should not see the job in the table', async function () {
   const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
-  if (results.rows.length) throw new Error('Job still exists')
+  if (results.length) throw new Error('Job still exists')
 })
 
 /**
