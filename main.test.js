@@ -18,11 +18,15 @@ When('I schedule a job with name {name} to run at {expression}', async function 
   this.name = name
 })
 
-Then('I should see the job run', function () {
+Then('I should see the job run {times}', function ({ times }) {
+  let count = 0
+  if (!times) times = 1
   return new Promise((resolve, reject) => {
     swag.on(this.topic, job => {
-      if (job.id === this.name) resolve()
-      else reject(new Error('Somehow got a different job'))
+      if (job.id === this.name) {
+        count++
+        if (count === times) resolve()
+      } else reject(new Error('Somehow got a different job'))
     }, {
       // Massively reduce the polling period to make the test run faster
       pollingPeriod: 100
@@ -31,18 +35,10 @@ Then('I should see the job run', function () {
 })
 
 /**
- * @test { topic: 'Test', name: 'Joe', expression: 'R1/PT1S' } resolves
+ * @test { topic: 'Test', name: 'Joe', expression: 'R0/PT1S', times: 1 } resolves
+ * @test { topic: 'Test', name: 'Jim', expression: 'R/PT1S', times: 2 } resolves
  */
-export const Once = Scenario`
+export const SimpleRun = Scenario`
 Given a topic {topic}
 When I schedule a job with name {name} to run at {expression}
-Then I should see the job run`
-
-/**
- * @test { topic: 'Test', name: 'Joe', expression: 'R/PT1S' } resolves
- */
-export const Twice = Scenario`
-Given a topic {topic}
-When I schedule a job with name {name} to run at {expression}
-Then I should see the job run
-Then I should see the job run`
+Then I should see the job run {times}`
