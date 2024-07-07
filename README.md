@@ -29,13 +29,62 @@ const swag = new Swag({
     password: 'password',
 })
 
-swag.on('email', async job => {
+await swag.on('email', async job => {
     console.log('Sending email to', job.data.email, 'with message', job.data.body)
 })
 
 // Schedules an email to be sent to Bob every day from July 1st, 2024
-swag.schedule('email', { 
+await swag.schedule('email', { 
     email: 'bob@example.com',
     body: 'Hello, Bob!'
 }, 'R/2024-07-01/P1D')
 ```
+
+### Supported Scheduling
+
+We support a variety of scheduling options, including:
+
+- [ISO 8601 Repeating Intervals](https://en.wikipedia.org/wiki/ISO_8601#Repeating_intervals)
+- [ISO 8601 Dates and Times](https://en.wikipedia.org/wiki/ISO_8601#Combined_date_and_time_representations)
+- [Cron Expressions](https://en.wikipedia.org/wiki/Cron)
+
+Some examples are outlined below.
+
+#### ISO 8601 Repeating Intervals
+
+These are defined by the `R` prefix, followed by the start date, and then the interval. For example, `R/2024-07-01/P1D` would start on July 1st, 2024, and repeat every day.
+
+`P` represents the period, and can be followed by `Y` for years, `M` for months, `W` for weeks, and `D` for days. Using `T` will allow you to specify hours, minutes, and seconds.
+
+Examples:
+
+- `R/2024-07-01/P1D` - Every day starting July 1st, 2024
+- `R/2024-07-01T12:00:00/PT1H` - Every hour starting July 1st, 2024 at 12:00:00
+- `R/2024-07-01T12:00:00/PT1H30M` - Every hour and a half starting July 1st, 2024 at 12:00:00
+- `R/PT1H` - Every hour starting now
+
+If you specify a start date, you can also specify the number of recurrences you'd like (`R#`):
+
+- `R5/2024-07-01/P1D` - Every day starting July 1st, 2024, up to 5 times
+- `R5/2024-07-01T12:00:00/PT1H` - Every hour starting July 1st, 2024 at 12:00:00, up to 5 times
+
+Additionally, we support one non-standard format for this interval, `R/<start>/<end>/<interval>`:
+
+- `R/2024-07-01/2024-07-05/P1D` - Every day from July 1st, 2024 to July 5th, 2024
+- `R/2024-07-01T12:00:00/2024-07-01T13:00:00/PT1M` - Every minute from July 1st, 2024 at 12:00:00 to July 1st, 2024 at 13:00:00
+
+#### ISO 8601 Dates and Times
+
+- `2024-07-01T12:00:00` - July 1st, 2024 at 12:00:00
+- `2020-01-01` - January 1st, 2020
+- `new Date('2020-01-01')` - JavaScript Dates are also supported
+
+These will not repeat, and will only run once.
+
+#### Cron Expressions
+
+We use the [cron-parser](https://www.npmjs.com/package/cron-parser) package to parse cron expressions. These are defined by the standard cron syntax (and we specifically recommend the 5 field syntax). For example, `0 0 * * *` would run every day at midnight.
+
+#### Future Additions
+
+We are planning on adding support for more scheduling options, for example: "every sunrise" or "every 3 sunrises". If someone needs this, file an issue and we will prioritize it.
