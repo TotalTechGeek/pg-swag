@@ -24,7 +24,11 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
   let jobs
   do {
     jobs = await db.manyOrNone(`
-        set enable_seqscan = off;
+        set local enable_seqscan = off;
+        set local enable_mergejoin = false;
+        set local enable_hashjoin = false;
+        set local enable_hashagg = false;
+        set local statement_timeout = 15000;
         update $1
         set locked_until = now() + interval $5, locked_by = $2, attempts = attempts + 1
         where id in (
@@ -35,9 +39,9 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
           limit $4
           for update skip locked
         )
-        and queue = $3
+        and queue = $3 and (locked_until <= now() or locked_until is null)
         returning *;
-      `, [options.swag.table, handlerId, queue, options.batchSize, options.lockPeriod])
+      `, [options.swag.table, handlerId, queue, options.batchSize, options.lockPeriod]).catch(() => [])
 
     if (!jobs.length) return
 
@@ -122,10 +126,15 @@ export class Swag {
   async #start () {
     if (this.initialized) return
     this.initialized = true
-    if (this.schema) await this.db.none('create schema if not exists $1:name', [this.schema])
-    await this.db.none('create table if not exists $1 (queue text, id text, run_at timestamptz, data jsonb, expression text, locked_until timestamptz, locked_by text, attempts int default 0)', [this.table])
-    await this.db.none('create index if not exists idx_jobs_queue_run_at on $1 (queue, greatest(run_at, locked_until))', [this.table])
-    await this.db.none('create unique index if not exists idx_jobs_queue_id on $1 (queue, id)', [this.table])
+    await this.db.tx(async t => {
+      if (this.schema) await t.none('create schema if not exists $1:name', [this.schema])
+      await t.none(`
+        create table if not exists $1 (queue text, id text, run_at timestamptz, data jsonb, expression text, locked_until timestamptz, locked_by text, attempts int default 0);
+        create index if not exists idx_jobs_queue_run_at on $1 (queue, greatest(run_at, locked_until));
+        create unique index if not exists idx_jobs_queue_id on $1 (queue, id);
+        cluster $1 using idx_jobs_queue_run_at;
+      `, [this.table])
+    })
   }
 
   /**
@@ -135,7 +144,7 @@ export class Swag {
     * @param {string} id - The unique identifier for the job.
     * @param {string | Date} expression The expression to use for scheduling the job.
     * @param {any} data - The data to pass to the handler when the job is run.
-    * Can be either a cron expression or a repeating ISO 8601 interval expression.
+    * Can be a cron expression or a repeating ISO 8601 interval expression or a Date.
     * For example, to run every 3 days, use 'R/2012-10-01T00:00:00Z/P3D'.
     *
     * ### ISO 8601 Interval Expressions
@@ -167,7 +176,53 @@ export class Swag {
       insert into $1 (queue, id, run_at, data, expression)
       values ($2, $3, $4, $5, $6)
       on conflict (queue, id) do update set data = $5, expression = $6
-    `, [this.table, queue, id, nextRun, data, expression])
+    `, [this.table, queue, id, nextRun, data ?? null, expression])
+  }
+
+  /**
+   * Schedules multiple jobs to run either at a specific time or on a repeating interval.
+   *
+   * @param {string} queue
+   * @param {{ id: string, expression: string | Date, data: any }[]} jobs
+   *
+   * Can be a cron expression or a repeating ISO 8601 interval expression or a Date.
+    * For example, to run every 3 days, use 'R/2012-10-01T00:00:00Z/P3D'.
+    *
+    * ### ISO 8601 Interval Expressions
+    * - `'R/2012-10-01T00:00:00Z/P3D'` - Repeats every 3 days starting from 2012-10-01
+    * - `'R/2012-10-01T00:00:00Z/PT1H'` - Repeats every hour starting from 2012-10-01
+    * - `'R/2012-10-01T00:00:00Z/PT5M'` - Repeats every 5 minutes starting from 2012-10-01
+    * - `'R3/2012-10-01T00:00:00Z/P1D'` - Repeats every day starting from 2012-10-01, but only 3 times
+    *
+    * ### Cron Expressions
+    * - `'0 0 * * *'` - Repeats every day at midnight
+    * - `'0 0 * * 1'` - Repeats every Monday at midnight
+    * - `'0 0 1 * *'` - Repeats every first day of the month at midnight
+    *
+    * ### ISO8601 Dates
+    * - `'2012-10-01T00:00:00Z'` - A specific date and time to run at, once.
+    *
+    * ### Never
+    * - `'cancel'` - Cancels / does not schedule the job.
+    * - `null` - Cancels / does not schedule the job.
+    *
+    * If a job by the same ID already exists in the queue, it will be replaced.
+   */
+  async scheduleMany (queue, jobs) {
+    await this.#start()
+
+    const query = jobs.map(job => {
+      const expression = job.expression instanceof Date ? job.expression.toISOString() : job.expression
+      const nextRun = nextTime(expression)
+      if (!nextRun) return null
+      return this.pgp.as.format(`
+        insert into $1 (queue, id, run_at, data, expression)
+        values ($2, $3, $4, $5, $6)
+        on conflict (queue, id) do update set data = $5, expression = $6
+      `, [this.table, queue, job.id, nextRun, job.data ?? null, expression])
+    }).join(';')
+
+    await this.db.tx(t => t.none(query))
   }
 
   /**
@@ -205,7 +260,7 @@ export class Swag {
     /** @type {Required<typeof options> & { errorHandler?: any, swag: Swag }} */
     const processOptions = {
       batchSize: 100,
-      concurrentJobs: 10,
+      concurrentJobs: 2,
       pollingPeriod: 15000,
       flushPeriod: 1000,
       lockPeriod: '1 minutes',
@@ -213,12 +268,16 @@ export class Swag {
       ...options
     }
 
-    const batcherId = setInterval(() => {
+    const run = () => {
       // Prevents more than one "processBatch" from running at the same time for the same queue.
       if (active) return
       active = true
       processBatch(this.db, this.workerId, queue, handler, completed, processOptions).finally(() => { active = false })
-    }, processOptions.pollingPeriod)
+    }
+
+    setImmediate(run)
+
+    const batcherId = setInterval(run, processOptions.pollingPeriod)
 
     const flush = async (force) => {
       if (force) while (active) await new Promise(resolve => setTimeout(resolve, 100))

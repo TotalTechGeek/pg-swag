@@ -49,6 +49,8 @@ const runJob = function ({ times, tryFor }) {
       lockPeriod: '1 seconds',
       flushPeriod: 100
     }).onError(onError)
+  }).finally(async () => {
+    await swag.stop(this.queue)
   })
 }
 
