@@ -3,6 +3,7 @@ import pgPromise from 'pg-promise'
 import crypto from 'crypto'
 import pMap from 'p-map'
 import { nextTime } from './helpers.js'
+import { parseRelativeAsSeconds } from './relative.js'
 
 /**
  * Fetches a batch of jobs from the database and processes them,
@@ -16,7 +17,7 @@ import { nextTime } from './helpers.js'
  * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler
  * @param {any} db
  * @param {any[]} completed
- * @param {{ batchSize: number, concurrentJobs: number, lockPeriod: `${number} ${'minutes' | 'seconds'}`, swag: Swag, errorHandler?: (err: any, job: import('./swag.d.ts').Job) => Promise<null | undefined | { expression: string } | { lockedUntil: Date } | boolean> }} options
+ * @param {{ batchSize: number, concurrentJobs: number, lockPeriod: import('./swag.d.ts').Interval, swag: Swag, errorHandler?: (err: any, job: import('./swag.d.ts').Job) => Promise<null | undefined | { expression: string } | { lockedUntil: Date } | boolean> }} options
  * @return {Promise<void>}
  */
 async function processBatch (db, handlerId, queue, handler, completed, options) {
@@ -240,7 +241,7 @@ export class Swag {
    * Creates a handler for a given queue that receives the job information.
    * @param {string} queue The type of job to listen for.
    * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler The function to run when a job is received.
-   * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number, lockPeriod?: `${number} ${'minutes' | 'seconds'}`, flushPeriod?: number  }} [options]
+   * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number | import('./swag.d.ts').Interval, lockPeriod?: number | import('./swag.d.ts').Interval, flushPeriod?: number | import('./swag.d.ts').Interval }} [options]
    *
    * @example Sending a scheduled email
    * ```
@@ -258,15 +259,16 @@ export class Swag {
     const completed = []
     let active = false
 
-    /** @type {Required<typeof options> & { errorHandler?: any, swag: Swag }} */
+    /** @type {Required<typeof options> & { errorHandler?: any, swag: Swag, pollingPeriod: number, flushPeriod: number, lockPeriod: import('./swag.d.ts').Interval }} */
     const processOptions = {
       batchSize: 100,
       concurrentJobs: 2,
-      pollingPeriod: 15000,
-      flushPeriod: 1000,
-      lockPeriod: '1 minutes',
       swag: this,
-      ...options
+      ...options,
+      pollingPeriod: typeof options?.pollingPeriod === 'number' ? options?.pollingPeriod : parseRelativeAsSeconds(options?.pollingPeriod ?? '15s') * 1000,
+      flushPeriod: typeof options?.flushPeriod === 'number' ? options?.flushPeriod : parseRelativeAsSeconds(options?.flushPeriod ?? '1s') * 1000,
+      // @ts-expect-error This is correct, I believe
+      lockPeriod: typeof options?.lockPeriod === 'number' ? Math.floor(options.lockPeriod / 1000) + ' seconds' : (options?.lockPeriod ?? '1 minutes')
     }
 
     const run = () => {

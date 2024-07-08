@@ -110,7 +110,7 @@ export class Swag {
      * Creates a handler for a given queue that receives the job information.
      * @param {string} queue The type of job to listen for.
      * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler The function to run when a job is received.
-     * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number, lockPeriod?: `${number} ${'minutes' | 'seconds'}`, flushPeriod?: number  }} [options]
+     * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number | import('./swag.d.ts').Interval, lockPeriod?: import('./swag.d.ts').Interval, flushPeriod?: number | import('./swag.d.ts').Interval }} [options]
      *
      * @example Sending a scheduled email
      * ```
@@ -132,9 +132,9 @@ export class Swag {
     } | boolean>, options?: {
         batchSize?: number;
         concurrentJobs?: number;
-        pollingPeriod?: number;
-        lockPeriod?: `${number} ${"minutes" | "seconds"}`;
-        flushPeriod?: number;
+        pollingPeriod?: number | import("./swag.d.ts").Interval;
+        lockPeriod?: import("./swag.d.ts").Interval;
+        flushPeriod?: number | import("./swag.d.ts").Interval;
     }): {
         onError: (handler: (err: any, job: import("./swag.d.ts").Job) => void | null | undefined | {
             expression: string;

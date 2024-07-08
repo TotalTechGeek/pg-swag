@@ -51,9 +51,9 @@ const runJob = function ({ times, tryFor }) {
       } else reject(new Error('Somehow got a different job'))
     }, {
       // Massively reduce the polling period to make the test run faster
-      pollingPeriod: 100,
+      pollingPeriod: '100 milliseconds',
       lockPeriod: '1 seconds',
-      flushPeriod: 100
+      flushPeriod: '100 milliseconds'
     }).onError(onError)
   }).finally(async () => {
     await swag.stop(this.queue)

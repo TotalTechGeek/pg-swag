@@ -1,0 +1,108 @@
+{
+  "parseRelative('1 day')": {
+    "value": {
+      "days": 1
+    },
+    "async": false
+  },
+  "parseRelative('2 days')": {
+    "value": {
+      "days": 2
+    },
+    "async": false
+  },
+  "parseRelative('1 week')": {
+    "value": {
+      "weeks": 1
+    },
+    "async": false
+  },
+  "parseRelative('in 3 weeks')": {
+    "value": {
+      "weeks": 3
+    },
+    "async": false
+  },
+  "parseRelative('+30s')": {
+    "value": {
+      "seconds": 30
+    },
+    "async": false
+  },
+  "parseRelative('+30 seconds')": {
+    "value": {
+      "seconds": 30
+    },
+    "async": false
+  },
+  "parseRelative('30 hours 30 seconds')": {
+    "value": {
+      "hours": 30,
+      "seconds": 30
+    },
+    "async": false
+  },
+  "parseRelative('3h30s')": {
+    "value": {
+      "hours": 3,
+      "seconds": 30
+    },
+    "async": false
+  },
+  "parseRelative('in 10 hours and 30s in about a week')": {
+    "value": {
+      "hours": 10,
+      "seconds": 30,
+      "weeks": 1
+    },
+    "async": false
+  },
+  "parseRelative('in an hour')": {
+    "value": {
+      "hours": 1
+    },
+    "async": false
+  },
+  "parseRelative('a week')": {
+    "value": {
+      "weeks": 1
+    },
+    "async": false
+  },
+  "parseRelative('a month')": {
+    "value": {
+      "months": 1
+    },
+    "async": false
+  },
+  "parseRelative('a Month')": {
+    "value": {
+      "months": 1
+    },
+    "async": false
+  },
+  "parseRelative('a Hour')": {
+    "value": {
+      "hours": 1
+    },
+    "async": false
+  },
+  "parseRelative('a moment')": {
+    "value": {
+      "minutes": 1
+    },
+    "async": false
+  },
+  "parseRelative('10ms')": {
+    "value": {
+      "milliseconds": 10
+    },
+    "async": false
+  },
+  "parseRelative('50 milliseconds')": {
+    "value": {
+      "milliseconds": 50
+    },
+    "async": false
+  }
+}

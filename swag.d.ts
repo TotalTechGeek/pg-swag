@@ -8,3 +8,7 @@ export interface Job {
   locked_by: string
   attempts: number
 }
+
+export type TimeInterval = 'milliseconds' | 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'months' | 'years'
+
+export type Interval = `${number} ${TimeInterval}`

@@ -133,15 +133,13 @@ By default, it will create a table called `jobs` in the public schema. If you wa
 
 When setting up a reader for a queue, you can pass in a configuration object to customize the behavior of the reader. The following options are available:
 
-Option | Description | Default
--- | -- | --
-batchSize | The number of tasks to fetch at a time | 100
-concurrentJobs | The number of tasks to run concurrently | 10
-pollingPeriod | The amount of time to wait between polling for tasks | 15000
-flushPeriod | The amount of time before writing finished tasks to the database | 1000
-lockPeriod | The amount of time to lock a task for | '1 minutes'
-
-*Warning*: Due to some author laziness, `lockPeriod` is different from the other periods represented, this is because Postgres supports `interval` types, and we have not thrown in a parser for the other options quite yet. Soon we may rectify this.
+Option | Description | Type | Default
+-- | -- | -- | --
+batchSize | The number of tasks to fetch at a time | number | 100
+concurrentJobs | The number of tasks to run concurrently | number | 10
+pollingPeriod | The amount of time to wait between polling for tasks | number (milliseconds) or string ('15 seconds') | 15000
+flushPeriod | The amount of time before writing finished tasks to the database |  number (milliseconds) or string ('15 seconds')  | 1000
+lockPeriod | The amount of time to lock a task for | number (milliseconds) or string ('15 seconds')  | '1 minutes'
 
 ### Error Handling
 
