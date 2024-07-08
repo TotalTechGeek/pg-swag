@@ -13,10 +13,10 @@ import { nextTime } from './helpers.js'
  *
  * @param {string} handlerId
  * @param {string} queue
- * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>} handler
+ * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler
  * @param {any} db
  * @param {any[]} completed
- * @param {{ batchSize: number, concurrentJobs: number, lockPeriod: `${number} ${'minutes' | 'seconds'}`, swag: Swag, errorHandler?: (err: any, job: import('./swag.d.ts').Job) => Promise<null | undefined | { expression: string } | boolean> }} options
+ * @param {{ batchSize: number, concurrentJobs: number, lockPeriod: `${number} ${'minutes' | 'seconds'}`, swag: Swag, errorHandler?: (err: any, job: import('./swag.d.ts').Job) => Promise<null | undefined | { expression: string } | { lockedUntil: Date } | boolean> }} options
  * @return {Promise<void>}
  */
 async function processBatch (db, handlerId, queue, handler, completed, options) {
@@ -57,13 +57,14 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
 
       if (result) {
         let nextExpression = job.expression
-        if (typeof result === 'object' && result?.expression) nextExpression = result.expression
+        if (typeof result === 'object' && 'expression' in result) nextExpression = result.expression
 
         completed.push({
           id: job.id,
           // If the expression is returned in an object, use that, otherwise use the job's expression.
           nextRun: nextTime(nextExpression, job.run_at, new Date()),
-          expression: typeof result === 'object' && result.expression
+          expression: typeof result === 'object' && 'expression' in result && result.expression,
+          lockedUntil: (typeof result === 'object' && 'lockedUntil' in result && result.lockedUntil) || null
         })
       }
     }, { concurrency: options.concurrentJobs })
@@ -73,12 +74,12 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
 /**
  * Generates the query to update completed jobs
  * @param {string} queue
- * @param {{ id: string, nextRun: Date, expression: null | string }[]} completed
+ * @param {{ id: string, nextRun: Date, expression: null | string, lockedUntil?: Date | null }[]} completed
  * @param {Swag} swag
  * @returns {string}
  */
 function generateFlush (queue, completed, swag) {
-  const query = completed.map(({ id, nextRun, expression }) => {
+  const query = completed.map(({ id, nextRun, expression, lockedUntil }) => {
     if (nextRun === null) {
       return swag.pgp.as.format(`
         delete from $1
@@ -89,13 +90,13 @@ function generateFlush (queue, completed, swag) {
     return swag.pgp.as.format(`
       update $1
       set run_at = $2,
-        locked_until = null,
+        locked_until = $6,
         locked_by = null,
         attempts = 0
         ${expression ? ', expression = $5' : ''}
       where queue = $4
       and id = $3
-    `, [swag.table, nextRun, id, queue, expression])
+    `, [swag.table, nextRun, id, queue, expression, lockedUntil ?? null])
   }).join(';')
   completed.splice(0, completed.length)
   return query
@@ -238,7 +239,7 @@ export class Swag {
   /**
    * Creates a handler for a given queue that receives the job information.
    * @param {string} queue The type of job to listen for.
-   * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>} handler The function to run when a job is received.
+   * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler The function to run when a job is received.
    * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number, lockPeriod?: `${number} ${'minutes' | 'seconds'}`, flushPeriod?: number  }} [options]
    *
    * @example Sending a scheduled email
@@ -248,7 +249,7 @@ export class Swag {
    *  await sendEmail(address, subject, body);
    * })
    * ```
-   * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>) => void}}
+   * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>) => void}}
    */
   on (queue, handler, options) {
     this.#start()
@@ -294,7 +295,7 @@ export class Swag {
 
   /**
    * Creates a global error handler for all jobs, regardless of queue.
-   * @param {(err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>} handler
+   * @param {(err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler
    */
   onError (handler) {
     this.globalErrorHandler = handler

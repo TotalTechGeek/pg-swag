@@ -4,8 +4,6 @@
 
 <img src="https://i.imgur.com/Xio7kHx.png" alt="An elephant wearing sunglasses" width="250px" />
 
-
-
 Have you ever needed to run a task (emails, reports, cleanup) at a specific time, or on a recurring schedule? Have you ever had multiple processes you needed to distribute the workload between?
 
 PG Swag is a distributed scheduling library intended to simplify the process of scheduling tasks across one or more nodes, leveraging the Postgres database as a shared state.
@@ -187,3 +185,12 @@ Swag.onError(cancelAfter(3))
 ```
 
 However, we STRONGLY advise that you go beyond using `cancelAfter` and write some more sophisticated error handling logic, so that you can communicate to the user (or your developers) what went wrong.
+
+Similarly, it is possible to use `{ lockedUntil: Date }` to lock the task until a specific time. This can be useful if you want to programmatically delay a task upon failure.
+
+```javascript
+Swag.onError(async (err, job) => {
+    // Lock the task by 1 extra minute for each attempt
+    return { lockedUntil: new Date(Date.now() + 1000 * 60 * job.attempts) }
+})
+```

@@ -13,8 +13,14 @@ Given('I want the job to fail {failures}', async function ({ failures }) {
   this.failures = failures
 })
 
-Given('I want it to cancel after {cancelAfter}', function ({ cancelAfter }) {
-  this.cancelAfter = cancelAfter
+Given('I want to delay the job forever if it fails', function () {
+  this.onError = () => {
+    return { lockedUntil: new Date('3000-01-01') }
+  }
+})
+
+Given('I want it to cancel after {cancelAfter}', function ({ cancelAfter: cA }) {
+  this.onError = cancelAfter(cA)
 })
 
 Given('I want it to cancel globally after {cancelAfter}', function ({ cancelAfter: cA }) {
@@ -30,7 +36,7 @@ const runJob = function ({ times, tryFor }) {
   let count = 0
   let failCount = 0
 
-  const onError = this.cancelAfter ? cancelAfter(this.cancelAfter) : () => {}
+  const onError = this.onError ? this.onError : () => {}
 
   return new Promise((resolve, reject) => {
     if (tryFor) setTimeout(() => resolve(null), tryFor)
@@ -70,6 +76,12 @@ Then('I should not see the job in the table', async function () {
   await swag.stop(this.queue) // force a flush
   const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
   if (results.length) throw new Error('Job still exists')
+})
+
+Then('I should be able to see the job locked in the table', async function () {
+  await swag.stop(this.queue) // force a flush
+  const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
+  if (results[0].locked_until < new Date('2999-01-01')) throw new Error('Job not locked')
 })
 
 /**
@@ -165,3 +177,14 @@ export const ScheduleUnschedulable = Scenario`
 Given a queue {queue}
 When I schedule a job with name {name} to run at {expression}
 Then I should not see the job in the table`
+
+/**
+ * @test { queue: 'Lock-Up', name: 'Lock-Up', expression: 'R/PT1S', failures: 1, tryFor: 1500 } resolves
+ */
+export const LockUp = Scenario`
+Given a queue {queue}
+And I want the job to fail {failures}
+And I want to delay the job forever if it fails
+When I schedule a job with name {name} to run at {expression}
+When I try to run the job
+Then I should be able to see the job locked in the table`

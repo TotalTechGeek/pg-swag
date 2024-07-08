@@ -2,7 +2,7 @@
   "name": "pg-swag",
   "module": "index.js",
   "type": "module",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "A distributed scheduler with a grin.",
   "keywords": ["pg", "scheduler", "scheduling", "distributed", "postgres", "schedules", "jobs"],
   "license": "MIT",

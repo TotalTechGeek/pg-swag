@@ -109,7 +109,7 @@ export class Swag {
     /**
      * Creates a handler for a given queue that receives the job information.
      * @param {string} queue The type of job to listen for.
-     * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>} handler The function to run when a job is received.
+     * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler The function to run when a job is received.
      * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number, lockPeriod?: `${number} ${'minutes' | 'seconds'}`, flushPeriod?: number  }} [options]
      *
      * @example Sending a scheduled email
@@ -119,12 +119,16 @@ export class Swag {
      *  await sendEmail(address, subject, body);
      * })
      * ```
-     * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>) => void}}
+     * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>) => void}}
      */
     on(queue: string, handler: (job: import("./swag.d.ts").Job) => void | null | undefined | {
         expression: string;
+    } | {
+        lockedUntil: Date;
     } | boolean | Promise<void | null | undefined | {
         expression: string;
+    } | {
+        lockedUntil: Date;
     } | boolean>, options?: {
         batchSize?: number;
         concurrentJobs?: number;
@@ -134,23 +138,35 @@ export class Swag {
     }): {
         onError: (handler: (err: any, job: import("./swag.d.ts").Job) => void | null | undefined | {
             expression: string;
+        } | {
+            lockedUntil: Date;
         } | boolean | Promise<void | null | undefined | {
             expression: string;
+        } | {
+            lockedUntil: Date;
         } | boolean>) => void;
     };
     /**
      * Creates a global error handler for all jobs, regardless of queue.
-     * @param {(err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | boolean | Promise<void | null | undefined | { expression: string } | boolean>} handler
+     * @param {(err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler
      */
     onError(handler: (err: any, job: import("./swag.d.ts").Job) => void | null | undefined | {
         expression: string;
+    } | {
+        lockedUntil: Date;
     } | boolean | Promise<void | null | undefined | {
         expression: string;
+    } | {
+        lockedUntil: Date;
     } | boolean>): void;
     globalErrorHandler: (err: any, job: import("./swag.d.ts").Job) => void | null | undefined | {
         expression: string;
+    } | {
+        lockedUntil: Date;
     } | boolean | Promise<void | null | undefined | {
         expression: string;
+    } | {
+        lockedUntil: Date;
     } | boolean>;
     /**
      * This stops the worker for the specified queue
