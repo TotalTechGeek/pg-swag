@@ -6,7 +6,12 @@ const { Given, When, Then, Scenario } = Steps()
 
 Given('a queue {queue}', async function ({ queue }) {
   this.queue = queue
+  this.skipPast = true
   swag.onError(() => {})
+})
+
+Given('I do not want to skip the past', function () {
+  this.skipPast = false
 })
 
 Given('I want the job to fail {failures}', async function ({ failures }) {
@@ -53,7 +58,8 @@ const runJob = function ({ times, tryFor }) {
       // Massively reduce the polling period to make the test run faster
       pollingPeriod: '100 milliseconds',
       lockPeriod: '1 seconds',
-      flushPeriod: '100 milliseconds'
+      flushPeriod: '100 milliseconds',
+      skipPast: this.skipPast
     }).onError(onError)
   }).finally(async () => {
     await swag.stop(this.queue)
@@ -82,6 +88,18 @@ Then('I should be able to see the job locked in the table', async function () {
   await swag.stop(this.queue) // force a flush
   const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
   if (results[0].locked_until < new Date('2999-01-01')) throw new Error('Job not locked')
+})
+
+Then('I should see the job scheduled in the past', async function () {
+  await swag.stop(this.queue) // force a flush
+  const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
+  if (results[0].scheduled_at > new Date()) throw new Error('Job not scheduled in the past')
+})
+
+Then('I should see the job scheduled in the future', async function () {
+  await swag.stop(this.queue) // force a flush
+  const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
+  if (results[0].scheduled_at < new Date()) throw new Error('Job not scheduled in the future')
 })
 
 /**
@@ -180,6 +198,7 @@ Then I should not see the job in the table`
 
 /**
  * @test { queue: 'Lock-Up', name: 'Lock-Up', expression: 'R/PT1S', failures: 1, tryFor: 1500 } resolves
+ * This test checks that you can lock a job in the table by returning a lockedUntil date in the onError function
  */
 export const LockUp = Scenario`
 Given a queue {queue}
@@ -188,3 +207,25 @@ And I want to delay the job forever if it fails
 When I schedule a job with name {name} to run at {expression}
 When I try to run the job
 Then I should be able to see the job locked in the table`
+
+/**
+ * @test { queue: 'Schedule-In-Past', name: 'Schedule-In-Past', expression: 'R/2020-01-01/P1D', times: 1 } resolves
+ * This test checks if you can pass in a flag to schedule tasks in the past.
+ */
+export const ScheduleInPast = Scenario`
+Given a queue {queue}
+And I do not want to skip the past
+When I schedule a job with name {name} to run at {expression}
+When I try to run the job
+Then I should see the job scheduled in the past`
+
+/**
+ * @test { queue: 'Schedule-In-Future', name: 'Schedule-In-Future', expression: 'R/2020-01-01/P1D', times: 1 } resolves
+ * While this is semi-redundant, this test checks if tasks are forcefully scheduled in the future.
+ * Instead of moving from 2020-01-01 to 2020-01-02, it should move after the current date.
+ */
+export const ScheduleInFuture = Scenario`
+Given a queue {queue}
+When I schedule a job with name {name} to run at {expression}
+When I try to run the job
+Then I should see the job scheduled in the future`

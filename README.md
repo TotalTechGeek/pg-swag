@@ -140,6 +140,13 @@ concurrentJobs | The number of tasks to run concurrently | number | 10
 pollingPeriod | The amount of time to wait between polling for tasks | number (milliseconds) or string ('15 seconds') | 15000
 flushPeriod | The amount of time before writing finished tasks to the database |  number (milliseconds) or string ('15 seconds')  | 1000
 lockPeriod | The amount of time to lock a task for | number (milliseconds) or string ('15 seconds')  | '1 minutes'
+skipPast | Whether to schedule tasks in the past, or to continue the schedule after current time. See below. | boolean | true
+
+#### Skip Past
+
+By default, the scheduler will not schedule tasks in the past. For example, if you have a 5 minute periodicity, and your service was down for 6h, when the scheduler starts back up, it will schedule 5m from the current time, not 6h ago, this is to avoid running ~72 tasks.
+
+If you want to run all the tasks that were missed, you can set `skipPast` to `false`. This will schedule all the tasks that were missed, and then continue the schedule as normal.
 
 ### Error Handling
 

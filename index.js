@@ -17,7 +17,7 @@ import { parseRelativeAsSeconds } from './relative.js'
  * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler
  * @param {any} db
  * @param {any[]} completed
- * @param {{ batchSize: number, concurrentJobs: number, lockPeriod: import('./swag.d.ts').Interval, swag: Swag, errorHandler?: (err: any, job: import('./swag.d.ts').Job) => Promise<null | undefined | { expression: string } | { lockedUntil: Date } | boolean> }} options
+ * @param {{ skipPast: boolean, batchSize: number, concurrentJobs: number, lockPeriod: import('./swag.d.ts').Interval, swag: Swag, errorHandler?: (err: any, job: import('./swag.d.ts').Job) => Promise<null | undefined | { expression: string } | { lockedUntil: Date } | boolean> }} options
  * @return {Promise<void>}
  */
 async function processBatch (db, handlerId, queue, handler, completed, options) {
@@ -63,7 +63,7 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
         completed.push({
           id: job.id,
           // If the expression is returned in an object, use that, otherwise use the job's expression.
-          nextRun: nextTime(nextExpression, job.run_at, new Date()),
+          nextRun: nextTime(nextExpression, job.run_at, options.skipPast ? new Date() : undefined),
           expression: typeof result === 'object' && 'expression' in result && result.expression,
           lockedUntil: (typeof result === 'object' && 'lockedUntil' in result && result.lockedUntil) || null
         })
@@ -177,7 +177,7 @@ export class Swag {
     await this.db.none(`
       insert into $1 (queue, id, run_at, data, expression)
       values ($2, $3, $4, $5, $6)
-      on conflict (queue, id) do update set data = $5, expression = $6
+      on conflict (queue, id) do update set data = $5, expression = $6, run_at = $4, locked_until = null
     `, [this.table, queue, id, nextRun, data ?? null, expression])
   }
 
@@ -220,7 +220,7 @@ export class Swag {
       return this.pgp.as.format(`
         insert into $1 (queue, id, run_at, data, expression)
         values ($2, $3, $4, $5, $6)
-        on conflict (queue, id) do update set data = $5, expression = $6
+        on conflict (queue, id) do update set data = $5, expression = $6, run_at = $4, locked_until = null
       `, [this.table, queue, job.id, nextRun, job.data ?? null, expression])
     }).join(';')
 
@@ -241,7 +241,7 @@ export class Swag {
    * Creates a handler for a given queue that receives the job information.
    * @param {string} queue The type of job to listen for.
    * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler The function to run when a job is received.
-   * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number | import('./swag.d.ts').Interval, lockPeriod?: number | import('./swag.d.ts').Interval, flushPeriod?: number | import('./swag.d.ts').Interval }} [options]
+   * @param {{ skipPast?: boolean, batchSize?: number, concurrentJobs?: number, pollingPeriod?: number | import('./swag.d.ts').Interval, lockPeriod?: number | import('./swag.d.ts').Interval, flushPeriod?: number | import('./swag.d.ts').Interval }} [options]
    *
    * @example Sending a scheduled email
    * ```
@@ -259,16 +259,20 @@ export class Swag {
     const completed = []
     let active = false
 
+    /** @type {import('./swag.d.ts').Interval} */
+    // @ts-expect-error This is a valid assignment
+    const lockPeriod = typeof options?.lockPeriod === 'number' ? Math.floor(options.lockPeriod / 1000) + ' seconds' : (options?.lockPeriod ?? '1 minutes')
+
     /** @type {Required<typeof options> & { errorHandler?: any, swag: Swag, pollingPeriod: number, flushPeriod: number, lockPeriod: import('./swag.d.ts').Interval }} */
     const processOptions = {
       batchSize: 100,
       concurrentJobs: 2,
       swag: this,
+      skipPast: true,
       ...options,
       pollingPeriod: typeof options?.pollingPeriod === 'number' ? options?.pollingPeriod : parseRelativeAsSeconds(options?.pollingPeriod ?? '15s') * 1000,
       flushPeriod: typeof options?.flushPeriod === 'number' ? options?.flushPeriod : parseRelativeAsSeconds(options?.flushPeriod ?? '1s') * 1000,
-      // @ts-expect-error This is correct, I believe
-      lockPeriod: typeof options?.lockPeriod === 'number' ? Math.floor(options.lockPeriod / 1000) + ' seconds' : (options?.lockPeriod ?? '1 minutes')
+      lockPeriod
     }
 
     const run = () => {
