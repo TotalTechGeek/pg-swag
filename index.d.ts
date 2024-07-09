@@ -42,6 +42,8 @@ export class Swag {
       * @param {string} id - The unique identifier for the job.
       * @param {string | Date} expression The expression to use for scheduling the job.
       * @param {any} data - The data to pass to the handler when the job is run.
+      * @param {boolean} [preserveRunAt=false] Whether to preserve the run_at & lock time if the job already exists.
+      *
       * Can be a cron expression or a repeating ISO 8601 interval expression or a Date.
       * For example, to run every 3 days, use 'R/2012-10-01T00:00:00Z/P3D'.
       *
@@ -65,12 +67,13 @@ export class Swag {
       *
       * If a job by the same ID already exists in the queue, it will be replaced.
       */
-    schedule(queue: string, id: string, expression: string | Date, data: any): Promise<void>;
+    schedule(queue: string, id: string, expression: string | Date, data: any, preserveRunAt?: boolean): Promise<void>;
     /**
      * Schedules multiple jobs to run either at a specific time or on a repeating interval.
      *
      * @param {string} queue
      * @param {{ id: string, expression: string | Date, data: any }[]} jobs
+     * @param {boolean} [preserveRunAt=false] Whether to preserve the run_at & lock time if the job already exists.
      *
      * Can be a cron expression or a repeating ISO 8601 interval expression or a Date.
       * For example, to run every 3 days, use 'R/2012-10-01T00:00:00Z/P3D'.
@@ -99,7 +102,7 @@ export class Swag {
         id: string;
         expression: string | Date;
         data: any;
-    }[]): Promise<void>;
+    }[], preserveRunAt?: boolean): Promise<void>;
     /**
       * Removes a job / schedule from the scheduler.
       * @param {string} queue - The name of the queue to remove the job from.
@@ -110,7 +113,7 @@ export class Swag {
      * Creates a handler for a given queue that receives the job information.
      * @param {string} queue The type of job to listen for.
      * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler The function to run when a job is received.
-     * @param {{ batchSize?: number, concurrentJobs?: number, pollingPeriod?: number | import('./swag.d.ts').Interval, lockPeriod?: import('./swag.d.ts').Interval, flushPeriod?: number | import('./swag.d.ts').Interval }} [options]
+     * @param {{ skipPast?: boolean, batchSize?: number, concurrentJobs?: number, pollingPeriod?: number | import('./swag.d.ts').Interval, lockPeriod?: number | import('./swag.d.ts').Interval, flushPeriod?: number | import('./swag.d.ts').Interval }} [options]
      *
      * @example Sending a scheduled email
      * ```
@@ -130,10 +133,11 @@ export class Swag {
     } | {
         lockedUntil: Date;
     } | boolean>, options?: {
+        skipPast?: boolean;
         batchSize?: number;
         concurrentJobs?: number;
         pollingPeriod?: number | import("./swag.d.ts").Interval;
-        lockPeriod?: import("./swag.d.ts").Interval;
+        lockPeriod?: number | import("./swag.d.ts").Interval;
         flushPeriod?: number | import("./swag.d.ts").Interval;
     }): {
         onError: (handler: (err: any, job: import("./swag.d.ts").Job) => void | null | undefined | {
