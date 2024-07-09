@@ -146,6 +146,8 @@ export class Swag {
     * @param {string} id - The unique identifier for the job.
     * @param {string | Date} expression The expression to use for scheduling the job.
     * @param {any} data - The data to pass to the handler when the job is run.
+    * @param {boolean} [preserveRunAt=false] Whether to preserve the run_at & lock time if the job already exists.
+    *
     * Can be a cron expression or a repeating ISO 8601 interval expression or a Date.
     * For example, to run every 3 days, use 'R/2012-10-01T00:00:00Z/P3D'.
     *
@@ -169,7 +171,7 @@ export class Swag {
     *
     * If a job by the same ID already exists in the queue, it will be replaced.
     */
-  async schedule (queue, id, expression, data) {
+  async schedule (queue, id, expression, data, preserveRunAt = false) {
     await this.#start()
     if (expression instanceof Date) expression = expression.toISOString()
     const nextRun = nextTime(expression)
@@ -177,8 +179,11 @@ export class Swag {
     await this.db.none(`
       insert into $1 (queue, id, run_at, data, expression)
       values ($2, $3, $4, $5, $6)
-      on conflict (queue, id) do update set data = $5, expression = $6, run_at = $4, locked_until = null
-    `, [this.table, queue, id, nextRun, data ?? null, expression])
+      on conflict (queue, id) do update set data = $5, expression = $6
+    ` +
+    (preserveRunAt ? '' : ', run_at = $4, locked_until = null'),
+    [this.table, queue, id, nextRun, data ?? null, expression]
+    )
   }
 
   /**
@@ -186,6 +191,7 @@ export class Swag {
    *
    * @param {string} queue
    * @param {{ id: string, expression: string | Date, data: any }[]} jobs
+   * @param {boolean} [preserveRunAt=false] Whether to preserve the run_at & lock time if the job already exists.
    *
    * Can be a cron expression or a repeating ISO 8601 interval expression or a Date.
     * For example, to run every 3 days, use 'R/2012-10-01T00:00:00Z/P3D'.
@@ -210,7 +216,7 @@ export class Swag {
     *
     * If a job by the same ID already exists in the queue, it will be replaced.
    */
-  async scheduleMany (queue, jobs) {
+  async scheduleMany (queue, jobs, preserveRunAt = false) {
     await this.#start()
 
     const query = jobs.map(job => {
@@ -220,8 +226,10 @@ export class Swag {
       return this.pgp.as.format(`
         insert into $1 (queue, id, run_at, data, expression)
         values ($2, $3, $4, $5, $6)
-        on conflict (queue, id) do update set data = $5, expression = $6, run_at = $4, locked_until = null
-      `, [this.table, queue, job.id, nextRun, job.data ?? null, expression])
+        on conflict (queue, id) do update set data = $5, expression = $6
+      ` + (preserveRunAt ? '' : ', run_at = $4, locked_until = null'),
+      [this.table, queue, job.id, nextRun, job.data ?? null, expression]
+      )
     }).join(';')
 
     await this.db.tx(t => t.none(query))

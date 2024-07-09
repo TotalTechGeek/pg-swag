@@ -1,11 +1,12 @@
 import { cancelAfter } from './index.js'
-import { Steps } from 'pineapple'
+import { Steps, HeaderTable } from 'pineapple'
 import { swag } from './setup.test.js'
 
 const { Given, When, Then, Scenario } = Steps()
 
 Given('a queue {queue}', async function ({ queue }) {
   this.queue = queue
+  this.preserve = false
   this.skipPast = true
   swag.onError(() => {})
 })
@@ -16,6 +17,10 @@ Given('I do not want to skip the past', function () {
 
 Given('I want the job to fail {failures}', async function ({ failures }) {
   this.failures = failures
+})
+
+Given('I want to preserve the run_at when I reschedule a job', function () {
+  this.preserve = true
 })
 
 Given('I want to delay the job forever if it fails', function () {
@@ -33,7 +38,7 @@ Given('I want it to cancel globally after {cancelAfter}', function ({ cancelAfte
 })
 
 When('I schedule a job with name {name} to run at {expression}', async function ({ name, expression }) {
-  await swag.schedule(this.queue, name, expression, {})
+  await swag.schedule(this.queue, name, expression, {}, this.preserve)
   this.name = name
 })
 
@@ -92,14 +97,21 @@ Then('I should be able to see the job locked in the table', async function () {
 
 Then('I should see the job scheduled in the past', async function () {
   await swag.stop(this.queue) // force a flush
+
   const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
-  if (results[0].scheduled_at > new Date()) throw new Error('Job not scheduled in the past')
+  if (results[0].run_at > new Date()) throw new Error('Job not scheduled in the past')
 })
 
 Then('I should see the job scheduled in the future', async function () {
   await swag.stop(this.queue) // force a flush
   const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
-  if (results[0].scheduled_at < new Date()) throw new Error('Job not scheduled in the future')
+  if (results[0].run_at < new Date()) throw new Error('Job not scheduled in the future')
+})
+
+Then('I should see the run_at match the expression', async function ({ expression }) {
+  await swag.stop(this.queue) // force a flush
+  const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
+  if (results[0].run_at.toISOString() !== new Date(expression).toISOString()) throw new Error('Job not scheduled at the correct time')
 })
 
 /**
@@ -229,3 +241,42 @@ Given a queue {queue}
 When I schedule a job with name {name} to run at {expression}
 When I try to run the job
 Then I should see the job scheduled in the future`
+
+/**
+ * @pineapple_define
+ */
+export const PreservationCase = HeaderTable('FutureThenPast', `
+| queue        | name | expression |
+| Preservation | Name | 3000-01-01 |
+| Preservation | Name | 2020-01-01 |
+`)
+
+/**
+ * @test #FutureThenPast resolves
+ *
+ * Okay, the above test case is a little "interesting", because it uses two rows for the same test case.
+ * Basically, it runs the Scenario Twice, but with the two different inputs. It should pass both iterations.
+ * Note: This expects the expression to be a date.
+ *
+ * This test checks if you can preserve the run_at date when scheduling a job. When the second task runs, it won't move
+ * it to 2020-01-01, but will keep it at 2030-01-01.
+ */
+export const ScheduleWithPreserve = Scenario`
+Given a queue {queue}
+And I want to preserve the run_at when I reschedule a job
+When I schedule a job with name {name} to run at {expression}
+Then I should see the job scheduled in the future`
+
+/**
+ * @test #FutureThenPast resolves
+ *
+ * Okay, the above test case is a little "interesting", because it uses two rows for the same test case.
+ * Basically, it runs the Scenario Twice, but with the two different inputs. It should pass both iterations.
+ * Note: This expects the expression to be a date.
+ *
+ * This checks that the run_at time is overridden when preserve is not set.
+ */
+export const ScheduleWithoutPreserve = Scenario`
+Given a queue {queue}
+When I schedule a job with name {name} to run at {expression}
+Then I should see the run_at match the expression`
