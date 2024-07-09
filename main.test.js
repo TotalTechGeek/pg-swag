@@ -280,3 +280,10 @@ export const ScheduleWithoutPreserve = Scenario`
 Given a queue {queue}
 When I schedule a job with name {name} to run at {expression}
 Then I should see the run_at match the expression`
+
+/**
+ * @afterAll
+ */
+export async function TearDown () {
+  await swag.remove('Preservation')
+}

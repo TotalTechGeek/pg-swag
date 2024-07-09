@@ -1,10 +1,12 @@
 import { Swag } from './index.js'
 
-export const swag = new Swag({
+export const pgConfig = {
   password: 'postgres',
   user: 'postgres',
   host: 'localhost'
-})
+}
+
+export const swag = new Swag(pgConfig)
 
 /**
  * @pineapple_import

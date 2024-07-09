@@ -181,7 +181,7 @@ export class Swag {
       values ($2, $3, $4, $5, $6)
       on conflict (queue, id) do update set data = $5, expression = $6
     ` +
-    (preserveRunAt ? '' : ', run_at = $4, locked_until = null'),
+    (preserveRunAt ? '' : ', run_at = $4, locked_until = null, attempts = 0'),
     [this.table, queue, id, nextRun, data ?? null, expression]
     )
   }
@@ -227,7 +227,7 @@ export class Swag {
         insert into $1 (queue, id, run_at, data, expression)
         values ($2, $3, $4, $5, $6)
         on conflict (queue, id) do update set data = $5, expression = $6
-      ` + (preserveRunAt ? '' : ', run_at = $4, locked_until = null'),
+      ` + (preserveRunAt ? '' : ', run_at = $4, locked_until = null, attempts = 0'),
       [this.table, queue, job.id, nextRun, job.data ?? null, expression]
       )
     }).join(';')
