@@ -141,6 +141,7 @@ pollingPeriod | The amount of time to wait between polling for tasks | number (m
 flushPeriod | The amount of time before writing finished tasks to the database |  number (milliseconds) or string ('15 seconds')  | 1000
 lockPeriod | The amount of time to lock a task for | number (milliseconds) or string ('15 seconds')  | '1 minutes'
 skipPast | Whether to schedule tasks in the past, or to continue the schedule after current time. See below. | boolean | true
+maxHeartbeats | The number of heartbeats before releasing a lock on tasks not actively being worked on in a batch | number | Infinity
 
 #### Skip Past
 

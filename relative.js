@@ -35,6 +35,7 @@ const timeReg = /([0-9]+)\s*([a-zA-Z]+)/g
  * @test 'a Month'
  * @test 'a Hour'
  * @test 'a moment'
+ * @test '5 minutes'
  * @test '10ms'
  * @test '50 milliseconds'
  */

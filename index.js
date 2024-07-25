@@ -17,7 +17,7 @@ import { parseRelativeAsSeconds } from './relative.js'
  * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler
  * @param {any} db
  * @param {any[]} completed
- * @param {{ skipPast: boolean, batchSize: number, concurrentJobs: number, lockPeriod: import('./swag.d.ts').Interval, swag: Swag, errorHandler?: (err: any, job: import('./swag.d.ts').Job) => Promise<null | undefined | { expression: string } | { lockedUntil: Date } | boolean> }} options
+ * @param {{ skipPast: boolean, maxHeartbeats: number, batchSize: number, concurrentJobs: number, lockPeriod: import('./swag.d.ts').Interval, swag: Swag, errorHandler?: (err: any, job: import('./swag.d.ts').Job) => Promise<null | undefined | { expression: string } | { lockedUntil: Date } | boolean> }} options
  * @return {Promise<void>}
  */
 async function processBatch (db, handlerId, queue, handler, completed, options) {
@@ -46,29 +46,57 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
 
     if (!jobs.length) return
 
-    await pMap(jobs, async job => {
-      let result
+    let heartbeats = 0
+    const lockedJobs = new Set(jobs.map(job => job.id))
+    const activeJobs = new Set()
 
-      try {
-        result = await handler(job) ?? true
-      } catch (e) {
-        if (options.swag.globalErrorHandler) result = await options.swag.globalErrorHandler(e, job)
-        if (options.errorHandler) result = await options.errorHandler(e, job)
-      }
+    const heartbeatMs = parseRelativeAsSeconds(options.lockPeriod) * 1000 / 2
 
-      if (result) {
-        let nextExpression = job.expression
-        if (typeof result === 'object' && 'expression' in result) nextExpression = result.expression
+    // Heartbeat to keep the jobs locked
+    const heartbeat = setInterval(async () => {
+      // Allows us to specify a maximum number of heartbeats to prevent infinite locking of jobs
+      // not currently being processed.
+      const jobsToLock = heartbeats++ < options.maxHeartbeats ? lockedJobs : activeJobs
+      if (!jobsToLock.size) return
+      await db.none(`
+        update $1
+        set locked_until = now() + interval $2
+        where id in ($3:csv)
+        and queue = $4
+      `, [options.swag.table, options.lockPeriod, Array.from(jobsToLock), queue])
+    }, heartbeatMs)
 
-        completed.push({
-          id: job.id,
-          // If the expression is returned in an object, use that, otherwise use the job's expression.
-          nextRun: nextTime(nextExpression, job.run_at, options.skipPast ? new Date() : undefined),
-          expression: typeof result === 'object' && 'expression' in result && result.expression,
-          lockedUntil: (typeof result === 'object' && 'lockedUntil' in result && result.lockedUntil) || null
-        })
-      }
-    }, { concurrency: options.concurrentJobs })
+    try {
+      await pMap(jobs, async job => {
+        let result
+        activeJobs.add(job.id)
+
+        try {
+          result = await handler(job) ?? true
+        } catch (e) {
+          if (options.swag.globalErrorHandler) result = await options.swag.globalErrorHandler(e, job)
+          if (options.errorHandler) result = await options.errorHandler(e, job)
+        }
+
+        if (result) {
+          let nextExpression = job.expression
+          if (typeof result === 'object' && 'expression' in result) nextExpression = result.expression
+
+          completed.push({
+            id: job.id,
+            // If the expression is returned in an object, use that, otherwise use the job's expression.
+            nextRun: nextTime(nextExpression, job.run_at, options.skipPast ? new Date() : undefined),
+            expression: typeof result === 'object' && 'expression' in result && result.expression,
+            lockedUntil: (typeof result === 'object' && 'lockedUntil' in result && result.lockedUntil) || null
+          })
+        }
+
+        lockedJobs.delete(job.id)
+        activeJobs.delete(job.id)
+      }, { concurrency: options.concurrentJobs })
+    } finally {
+      clearInterval(heartbeat)
+    }
   } while (jobs.length === options.batchSize)
 }
 
@@ -249,7 +277,7 @@ export class Swag {
    * Creates a handler for a given queue that receives the job information.
    * @param {string} queue The type of job to listen for.
    * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler The function to run when a job is received.
-   * @param {{ skipPast?: boolean, batchSize?: number, concurrentJobs?: number, pollingPeriod?: number | import('./swag.d.ts').Interval, lockPeriod?: number | import('./swag.d.ts').Interval, flushPeriod?: number | import('./swag.d.ts').Interval }} [options]
+   * @param {{ skipPast?: boolean, maxHeartbeats?: number, batchSize?: number, concurrentJobs?: number, pollingPeriod?: number | import('./swag.d.ts').Interval, lockPeriod?: number | import('./swag.d.ts').Interval, flushPeriod?: number | import('./swag.d.ts').Interval }} [options]
    *
    * @example Sending a scheduled email
    * ```
@@ -277,6 +305,7 @@ export class Swag {
       concurrentJobs: 2,
       swag: this,
       skipPast: true,
+      maxHeartbeats: Infinity,
       ...options,
       pollingPeriod: typeof options?.pollingPeriod === 'number' ? options?.pollingPeriod : parseRelativeAsSeconds(options?.pollingPeriod ?? '15s') * 1000,
       flushPeriod: typeof options?.flushPeriod === 'number' ? options?.flushPeriod : parseRelativeAsSeconds(options?.flushPeriod ?? '1s') * 1000,

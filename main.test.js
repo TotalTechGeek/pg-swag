@@ -8,6 +8,7 @@ Given('a queue {queue}', async function ({ queue }) {
   this.queue = queue
   this.preserve = false
   this.skipPast = true
+  this.forceFlush = true
   swag.onError(() => {})
 })
 
@@ -37,6 +38,22 @@ Given('I want it to cancel globally after {cancelAfter}', function ({ cancelAfte
   swag.onError(cancelAfter(cA))
 })
 
+Given('I want the job to delay by {delay}', function ({ delay }) {
+  this.delay = delay
+})
+
+Given('I do not want to force a flush', function () {
+  this.forceFlush = false
+})
+
+Given('I want a lock period of {lockPeriod}', function ({ lockPeriod }) {
+  this.lockPeriod = lockPeriod
+})
+
+Given('I want a flush period of {flushPeriod}', function ({ flushPeriod }) {
+  this.flushPeriod = flushPeriod
+})
+
 When('I schedule a job with name {name} to run at {expression}', async function ({ name, expression }) {
   await swag.schedule(this.queue, name, expression, {}, this.preserve)
   this.name = name
@@ -50,8 +67,9 @@ const runJob = function ({ times, tryFor }) {
 
   return new Promise((resolve, reject) => {
     if (tryFor) setTimeout(() => resolve(null), tryFor)
-    swag.on(this.queue, job => {
+    swag.on(this.queue, async job => {
       if (this.failures && failCount++ < this.failures) throw new Error('Job failed')
+      if (this.delay) await new Promise(r => setTimeout(r, this.delay))
       if (job.id === this.name) {
         count++
         if (count === times) {
@@ -62,12 +80,12 @@ const runJob = function ({ times, tryFor }) {
     }, {
       // Massively reduce the polling period to make the test run faster
       pollingPeriod: '100 milliseconds',
-      lockPeriod: '1 seconds',
-      flushPeriod: '100 milliseconds',
+      lockPeriod: this.lockPeriod ?? '1 seconds',
+      flushPeriod: this.flushPeriod ?? '100 milliseconds',
       skipPast: this.skipPast
     }).onError(onError)
   }).finally(async () => {
-    await swag.stop(this.queue)
+    if (this.forceFlush) await swag.stop(this.queue)
   })
 }
 
@@ -89,27 +107,27 @@ Then('I should not see the job in the table', async function () {
   if (results.length) throw new Error('Job still exists')
 })
 
-Then('I should be able to see the job locked in the table', async function () {
-  await swag.stop(this.queue) // force a flush
+Then('I should be able to see the job locked in the table after {lockedAfter}', async function ({ lockedAfter }) {
+  if (lockedAfter === 'now') lockedAfter = new Date()
+  if (this.forceFlush) await swag.stop(this.queue)
   const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
-  if (results[0].locked_until < new Date('2999-01-01')) throw new Error('Job not locked')
+  if (results[0].locked_until < new Date(lockedAfter)) throw new Error('Job not locked')
 })
 
 Then('I should see the job scheduled in the past', async function () {
-  await swag.stop(this.queue) // force a flush
-
+  if (this.forceFlush) await swag.stop(this.queue)
   const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
   if (results[0].run_at > new Date()) throw new Error('Job not scheduled in the past')
 })
 
 Then('I should see the job scheduled in the future', async function () {
-  await swag.stop(this.queue) // force a flush
+  if (this.forceFlush) await swag.stop(this.queue)
   const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
   if (results[0].run_at < new Date()) throw new Error('Job not scheduled in the future')
 })
 
 Then('I should see the run_at match the expression', async function ({ expression }) {
-  await swag.stop(this.queue) // force a flush
+  if (this.forceFlush) await swag.stop(this.queue)
   const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
   if (results[0].run_at.toISOString() !== new Date(expression).toISOString()) throw new Error('Job not scheduled at the correct time')
 })
@@ -209,7 +227,7 @@ When I schedule a job with name {name} to run at {expression}
 Then I should not see the job in the table`
 
 /**
- * @test { queue: 'Lock-Up', name: 'Lock-Up', expression: 'R/PT1S', failures: 1, tryFor: 1500 } resolves
+ * @test { queue: 'Lock-Up', name: 'Lock-Up', expression: 'R/PT1S', failures: 1, tryFor: 1500, lockedAfter: '2999-12-31' } resolves
  * This test checks that you can lock a job in the table by returning a lockedUntil date in the onError function
  */
 export const LockUp = Scenario`
@@ -218,7 +236,7 @@ And I want the job to fail {failures}
 And I want to delay the job forever if it fails
 When I schedule a job with name {name} to run at {expression}
 When I try to run the job
-Then I should be able to see the job locked in the table`
+Then I should be able to see the job locked in the table after {lockedAfter}`
 
 /**
  * @test { queue: 'Schedule-In-Past', name: 'Schedule-In-Past', expression: 'R/2020-01-01/P1D', times: 1 } resolves
@@ -282,7 +300,21 @@ When I schedule a job with name {name} to run at {expression}
 Then I should see the run_at match the expression`
 
 /**
- * @afterAll
+ * @test { queue: 'Slow-Job', name: 'Slow-Job', expression: '2020-01-01', lockPeriod: '2 seconds', lockedAfter: 'now', delay: 8000, tryFor: 3000, flushPeriod: '10 seconds' } resolves
+ */
+export const ScheduleWithSlowJob = Scenario`
+Given a queue {queue}
+And I want the job to delay by {delay}
+And I want a lock period of {lockPeriod}
+And I want a flush period of {flushPeriod}
+And I do not want to force a flush
+When I schedule a job with name {name} to run at {expression}
+And I try to run the job
+Then I should be able to see the job locked in the table after {lockedAfter}
+`
+
+/**
+ * @beforeAll
  */
 export async function TearDown () {
   await swag.remove('Preservation')

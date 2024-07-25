@@ -104,5 +104,11 @@
       "milliseconds": 50
     },
     "async": false
+  },
+  "parseRelative('5 minutes')": {
+    "value": {
+      "minutes": 5
+    },
+    "async": false
   }
 }
