@@ -317,5 +317,5 @@ Then I should be able to see the job locked in the table after {lockedAfter}
  * @beforeAll
  */
 export async function TearDown () {
-  await swag.remove('Preservation')
+  await swag.remove('Preservation').catch(() => {})
 }
