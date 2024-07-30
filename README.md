@@ -87,6 +87,29 @@ Additionally, we support one non-standard format for this interval, `R/<start>/<
 
 These will not repeat, and will only run once.
 
+#### Duration Objects
+
+You can also pass in a duration object, which is an object with the following fields:
+
+Field | Description
+-- | --
+years | # of Years
+months | # of Months
+weeks | # of Weeks
+days | # of Days
+hours | # of Hours
+minutes | # of Minutes
+seconds | # of Seconds
+recurrences | # of Recurrences
+startDate | The date to start the schedule
+endDate | The date to end the schedule
+
+Upon calling `schedule`, the duration object will be converted into an ISO8601 Repeating Interval.
+
+- `{ days: 1 }` - Every day starting now
+- `{ days: 1, recurrences: 5 }` - Every day starting now, up to 5 times
+- `{ hours: 1, startDate: '2024-07-01T12:00:00' }` - Every hour starting July 1st, 2024 at 12:00:00
+
 #### Cron Expressions
 
 We use the [cron-parser](https://www.npmjs.com/package/cron-parser) package to parse cron expressions. These are defined by the standard cron syntax (and we specifically recommend the 5 field syntax). For example, `0 0 * * *` would run every day at midnight.

@@ -13,7 +13,10 @@ const timeLookup = {
   ms: 'milliseconds',
   millisecond: 'milliseconds',
   milli: 'milliseconds',
-  milliseconds: 'milliseconds'
+  milliseconds: 'milliseconds',
+  times: 'recurrences',
+  recurrences: 'recurrences',
+  repeats: 'recurrences'
 }
 
 const timeReg = /([0-9]+)\s*([a-zA-Z]+)/g
@@ -38,11 +41,14 @@ const timeReg = /([0-9]+)\s*([a-zA-Z]+)/g
  * @test '5 minutes'
  * @test '10ms'
  * @test '50 milliseconds'
+ * @test 'ninety milliseconds' throws
+ * @returns {import('./types.d.ts').SpecialDuration}
  */
 export function parseRelative (expression) {
-  expression = expression.replace(/(^| )in |\+/g, '').replace(/(^| )(a|an) /g, ' 1 ').trim()
-
+  expression = expression.replace(/(^| )in |\+/g, '').replace(/(^| )(a|an) /g, ' 1 ').replace(/(every|next) /g, i => i + '1 ').trim()
   const matches = [...expression.matchAll(timeReg)]
+
+  if (!matches.length) throw new Error('No time found')
 
   const duration = {}
   for (const match of matches) {

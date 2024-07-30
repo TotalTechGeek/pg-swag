@@ -15,10 +15,15 @@
  * @test 'a Month'
  * @test 'a Hour'
  * @test 'a moment'
+ * @test '5 minutes'
  * @test '10ms'
  * @test '50 milliseconds'
+ * @test 'ninety milliseconds' throws
+ * @returns {import('iso8601-duration').Duration & {recurrences?: number}}
  */
-export function parseRelative(expression: string): {};
+export function parseRelative(expression: string): import("iso8601-duration").Duration & {
+    recurrences?: number;
+};
 /**
  * @test '1 day' returns 86400
  * @test '50ms' returns 0.05

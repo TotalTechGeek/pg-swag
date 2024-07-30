@@ -40,7 +40,7 @@ export class Swag {
      *
       * @param {string} queue - The name of the queue to schedule the job in.
       * @param {string} id - The unique identifier for the job.
-      * @param {string | Date} expression The expression to use for scheduling the job.
+      * @param {string | Date | import('./types.d.ts').SpecialDuration} expression The expression to use for scheduling the job.
       * @param {any} data - The data to pass to the handler when the job is run.
       * @param {boolean} [preserveRunAt=false] Whether to preserve the run_at & lock time if the job already exists.
       *
@@ -61,13 +61,33 @@ export class Swag {
       * ### ISO8601 Dates
       * - `'2012-10-01T00:00:00Z'` - A specific date and time to run at, once.
       *
+      * ### Duration
+      *
+      * An object that represents a duration, with the following optional properties:
+      * - `years`
+      * - `months`
+      * - `weeks`
+      * - `days`
+      * - `hours`
+      * - `minutes`
+      * - `seconds`
+      * - `recurrences` - Number of times to repeat the duration (default: Infinity)
+      * - `startDate` - The start date of the duration
+      * - `endDate` - The end date of the duration
+      *
+      * Allowing the following
+      * - `{ days: 1 }` - Repeats every day starting from now
+      * - `{ days: 1, startDate: new Date('2021-01-01') }` - Repeats every day starting from 2021-01-01
+      * - `{ hours: 10, minutes: 30 }` - Repeats every 10 hours and 30 minutes starting from now
+      * - `{ hours: 5, recurrences: 3 }` - Repeats every 5 hours starting from now, but only 3 times
+      *
       * ### Never
       * - `'cancel'` - Cancels / does not schedule the job.
       * - `null` - Cancels / does not schedule the job.
       *
       * If a job by the same ID already exists in the queue, it will be replaced.
       */
-    schedule(queue: string, id: string, expression: string | Date, data: any, preserveRunAt?: boolean): Promise<void>;
+    schedule(queue: string, id: string, expression: string | Date | import("./types.d.ts").SpecialDuration, data: any, preserveRunAt?: boolean): Promise<void>;
     /**
      * Schedules multiple jobs to run either at a specific time or on a repeating interval.
      *
@@ -92,6 +112,26 @@ export class Swag {
       * ### ISO8601 Dates
       * - `'2012-10-01T00:00:00Z'` - A specific date and time to run at, once.
       *
+      *  ### Duration
+      *
+      * An object that represents a duration, with the following optional properties:
+      * - `years`
+      * - `months`
+      * - `weeks`
+      * - `days`
+      * - `hours`
+      * - `minutes`
+      * - `seconds`
+      * - `recurrences` - Number of times to repeat the duration (default: Infinity)
+      * - `startDate` - The start date of the duration
+      * - `endDate` - The end date of the duration
+      *
+      * Allowing the following
+      * - `{ days: 1 }` - Repeats every day starting from now
+      * - `{ days: 1, startDate: new Date('2021-01-01') }` - Repeats every day starting from 2021-01-01
+      * - `{ hours: 10, minutes: 30 }` - Repeats every 10 hours and 30 minutes starting from now
+      * - `{ hours: 5, recurrences: 3 }` - Repeats every 5 hours starting from now, but only 3 times
+      *
       * ### Never
       * - `'cancel'` - Cancels / does not schedule the job.
       * - `null` - Cancels / does not schedule the job.
@@ -112,7 +152,7 @@ export class Swag {
     /**
      * Creates a handler for a given queue that receives the job information.
      * @param {string} queue The type of job to listen for.
-     * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler The function to run when a job is received.
+     * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean>} handler The function to run when a job is received.
      * @param {{ skipPast?: boolean, maxHeartbeats?: number, batchSize?: number, concurrentJobs?: number, pollingPeriod?: number | import('./swag.d.ts').Interval, lockPeriod?: number | import('./swag.d.ts').Interval, flushPeriod?: number | import('./swag.d.ts').Interval }} [options]
      *
      * @example Sending a scheduled email
@@ -122,14 +162,14 @@ export class Swag {
      *  await sendEmail(address, subject, body);
      * })
      * ```
-     * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>) => void}}
+     * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean>) => void}}
      */
     on(queue: string, handler: (job: import("./swag.d.ts").Job) => void | null | undefined | {
-        expression: string;
+        expression: string | Date | import("./types.d.ts").SpecialDuration;
     } | {
         lockedUntil: Date;
     } | boolean | Promise<void | null | undefined | {
-        expression: string;
+        expression: string | Date | import("./types.d.ts").SpecialDuration;
     } | {
         lockedUntil: Date;
     } | boolean>, options?: {
@@ -142,34 +182,34 @@ export class Swag {
         flushPeriod?: number | import("./swag.d.ts").Interval;
     }): {
         onError: (handler: (err: any, job: import("./swag.d.ts").Job) => void | null | undefined | {
-            expression: string;
+            expression: string | Date | import("./types.d.ts").SpecialDuration;
         } | {
             lockedUntil: Date;
         } | boolean | Promise<void | null | undefined | {
-            expression: string;
+            expression: string | Date | import("./types.d.ts").SpecialDuration;
         } | {
             lockedUntil: Date;
         } | boolean>) => void;
     };
     /**
      * Creates a global error handler for all jobs, regardless of queue.
-     * @param {(err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler
+     * @param {(err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean>} handler
      */
     onError(handler: (err: any, job: import("./swag.d.ts").Job) => void | null | undefined | {
-        expression: string;
+        expression: string | Date | import("./types.d.ts").SpecialDuration;
     } | {
         lockedUntil: Date;
     } | boolean | Promise<void | null | undefined | {
-        expression: string;
+        expression: string | Date | import("./types.d.ts").SpecialDuration;
     } | {
         lockedUntil: Date;
     } | boolean>): void;
     globalErrorHandler: (err: any, job: import("./swag.d.ts").Job) => void | null | undefined | {
-        expression: string;
+        expression: string | Date | import("./types.d.ts").SpecialDuration;
     } | {
         lockedUntil: Date;
     } | boolean | Promise<void | null | undefined | {
-        expression: string;
+        expression: string | Date | import("./types.d.ts").SpecialDuration;
     } | {
         lockedUntil: Date;
     } | boolean>;
@@ -181,3 +221,6 @@ export class Swag {
     #private;
 }
 import pgPromise from 'pg-promise';
+import { durationToISO8601 } from './helpers.js';
+import { relativeToISO8601 } from './helpers.js';
+export { durationToISO8601, relativeToISO8601 };

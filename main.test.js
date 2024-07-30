@@ -135,6 +135,7 @@ Then('I should see the run_at match the expression', async function ({ expressio
 /**
  * @test { queue: 'Test', name: 'Date-Based', expression: '2020-01-01', times: 1 } resolves
  * @test { queue: 'Test', name: 'Repeating-Schedule', expression: 'R/PT1S', times: 2 } resolves
+ * @test { queue: 'Test', name: 'Repeating-With-Obj', expression: { seconds: 1 }, times: 1 } resolves
  *
  * This test is checking that jobs are scheduled and run as expected
  */

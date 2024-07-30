@@ -2,8 +2,9 @@
 import pgPromise from 'pg-promise'
 import crypto from 'crypto'
 import pMap from 'p-map'
-import { nextTime } from './helpers.js'
+import { nextTime, relativeToISO8601 } from './helpers.js'
 import { parseRelativeAsSeconds } from './relative.js'
+import { durationToISO8601 } from './helpers.js'
 
 /**
  * Fetches a batch of jobs from the database and processes them,
@@ -14,10 +15,10 @@ import { parseRelativeAsSeconds } from './relative.js'
  *
  * @param {string} handlerId
  * @param {string} queue
- * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler
+ * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean>} handler
  * @param {any} db
  * @param {any[]} completed
- * @param {{ skipPast: boolean, maxHeartbeats: number, batchSize: number, concurrentJobs: number, lockPeriod: import('./swag.d.ts').Interval, swag: Swag, errorHandler?: (err: any, job: import('./swag.d.ts').Job) => Promise<null | undefined | { expression: string } | { lockedUntil: Date } | boolean> }} options
+ * @param {{ skipPast: boolean, maxHeartbeats: number, batchSize: number, concurrentJobs: number, lockPeriod: import('./swag.d.ts').Interval, swag: Swag, errorHandler?: (err: any, job: import('./swag.d.ts').Job) => Promise<null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean> }} options
  * @return {Promise<void>}
  */
 async function processBatch (db, handlerId, queue, handler, completed, options) {
@@ -79,8 +80,12 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
         }
 
         if (result) {
+          /** @type {string | Date | import('./types.d.ts').SpecialDuration} */
           let nextExpression = job.expression
           if (typeof result === 'object' && 'expression' in result) nextExpression = result.expression
+
+          if (nextExpression instanceof Date) nextExpression = nextExpression.toISOString()
+          if (typeof nextExpression === 'object') nextExpression = durationToISO8601(nextExpression)
 
           completed.push({
             id: job.id,
@@ -172,7 +177,7 @@ export class Swag {
    *
     * @param {string} queue - The name of the queue to schedule the job in.
     * @param {string} id - The unique identifier for the job.
-    * @param {string | Date} expression The expression to use for scheduling the job.
+    * @param {string | Date | import('./types.d.ts').SpecialDuration} expression The expression to use for scheduling the job.
     * @param {any} data - The data to pass to the handler when the job is run.
     * @param {boolean} [preserveRunAt=false] Whether to preserve the run_at & lock time if the job already exists.
     *
@@ -193,6 +198,26 @@ export class Swag {
     * ### ISO8601 Dates
     * - `'2012-10-01T00:00:00Z'` - A specific date and time to run at, once.
     *
+    * ### Duration
+    *
+    * An object that represents a duration, with the following optional properties:
+    * - `years`
+    * - `months`
+    * - `weeks`
+    * - `days`
+    * - `hours`
+    * - `minutes`
+    * - `seconds`
+    * - `recurrences` - Number of times to repeat the duration (default: Infinity)
+    * - `startDate` - The start date of the duration
+    * - `endDate` - The end date of the duration
+    *
+    * Allowing the following
+    * - `{ days: 1 }` - Repeats every day starting from now
+    * - `{ days: 1, startDate: new Date('2021-01-01') }` - Repeats every day starting from 2021-01-01
+    * - `{ hours: 10, minutes: 30 }` - Repeats every 10 hours and 30 minutes starting from now
+    * - `{ hours: 5, recurrences: 3 }` - Repeats every 5 hours starting from now, but only 3 times
+    *
     * ### Never
     * - `'cancel'` - Cancels / does not schedule the job.
     * - `null` - Cancels / does not schedule the job.
@@ -202,6 +227,11 @@ export class Swag {
   async schedule (queue, id, expression, data, preserveRunAt = false) {
     await this.#start()
     if (expression instanceof Date) expression = expression.toISOString()
+
+    // While "nextTime" does support this object, converting it here is cleaner for the
+    // database query.
+    if (typeof expression === 'object') expression = durationToISO8601(expression)
+
     const nextRun = nextTime(expression)
     if (!nextRun) return
     await this.db.none(`
@@ -238,6 +268,26 @@ export class Swag {
     * ### ISO8601 Dates
     * - `'2012-10-01T00:00:00Z'` - A specific date and time to run at, once.
     *
+    *  ### Duration
+    *
+    * An object that represents a duration, with the following optional properties:
+    * - `years`
+    * - `months`
+    * - `weeks`
+    * - `days`
+    * - `hours`
+    * - `minutes`
+    * - `seconds`
+    * - `recurrences` - Number of times to repeat the duration (default: Infinity)
+    * - `startDate` - The start date of the duration
+    * - `endDate` - The end date of the duration
+    *
+    * Allowing the following
+    * - `{ days: 1 }` - Repeats every day starting from now
+    * - `{ days: 1, startDate: new Date('2021-01-01') }` - Repeats every day starting from 2021-01-01
+    * - `{ hours: 10, minutes: 30 }` - Repeats every 10 hours and 30 minutes starting from now
+    * - `{ hours: 5, recurrences: 3 }` - Repeats every 5 hours starting from now, but only 3 times
+    *
     * ### Never
     * - `'cancel'` - Cancels / does not schedule the job.
     * - `null` - Cancels / does not schedule the job.
@@ -248,7 +298,10 @@ export class Swag {
     await this.#start()
 
     const query = jobs.map(job => {
-      const expression = job.expression instanceof Date ? job.expression.toISOString() : job.expression
+      let expression = job.expression
+      if (expression instanceof Date) expression = expression.toISOString()
+      if (typeof expression === 'object') expression = durationToISO8601(expression)
+
       const nextRun = nextTime(expression)
       if (!nextRun) return null
       return this.pgp.as.format(`
@@ -276,7 +329,7 @@ export class Swag {
   /**
    * Creates a handler for a given queue that receives the job information.
    * @param {string} queue The type of job to listen for.
-   * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler The function to run when a job is received.
+   * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean>} handler The function to run when a job is received.
    * @param {{ skipPast?: boolean, maxHeartbeats?: number, batchSize?: number, concurrentJobs?: number, pollingPeriod?: number | import('./swag.d.ts').Interval, lockPeriod?: number | import('./swag.d.ts').Interval, flushPeriod?: number | import('./swag.d.ts').Interval }} [options]
    *
    * @example Sending a scheduled email
@@ -286,7 +339,7 @@ export class Swag {
    *  await sendEmail(address, subject, body);
    * })
    * ```
-   * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>) => void}}
+   * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean>) => void}}
    */
   on (queue, handler, options) {
     this.#start()
@@ -338,7 +391,7 @@ export class Swag {
 
   /**
    * Creates a global error handler for all jobs, regardless of queue.
-   * @param {(err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string } | { lockedUntil: Date } | boolean>} handler
+   * @param {(err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean>} handler
    */
   onError (handler) {
     this.globalErrorHandler = handler
@@ -378,4 +431,9 @@ export function cancelAfter (num) {
   return (_err, job) => {
     if (job.attempts > num) return { expression: 'cancel' }
   }
+}
+
+export {
+  durationToISO8601,
+  relativeToISO8601
 }
