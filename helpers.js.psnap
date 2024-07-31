@@ -195,10 +195,6 @@
     "value": date("2020-01-01T00:00:30.000Z"),
     "async": false
   },
-  "relativeToISO8601('every 20 seconds')": {
-    "value": "R/PT20S",
-    "async": false
-  },
   "durationToISO8601({ days: 1, startDate: '2020-01-01' })": {
     "value": "R/2020-01-01T00:00:00.000Z/P1D",
     "async": false
