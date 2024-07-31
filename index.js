@@ -37,11 +37,11 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
           select id
           from $1
           where queue = $3
-          and greatest(run_at, locked_until) <= now()
+          and locked_until <= now()
           limit $4
           for update skip locked
         )
-        and queue = $3 and (locked_until <= now() or locked_until is null)
+        and queue = $3 and locked_until <= now()
         returning *;
       `, [options.swag.table, handlerId, queue, options.batchSize, options.lockPeriod]).catch(() => [])
 
@@ -130,7 +130,7 @@ function generateFlush (queue, completed, swag) {
         ${expression ? ', expression = $5' : ''}
       where queue = $4
       and id = $3
-    `, [swag.table, nextRun, id, queue, expression, lockedUntil ?? null])
+    `, [swag.table, nextRun, id, queue, expression, lockedUntil ?? nextRun])
   }).join(';')
   completed.splice(0, completed.length)
   return query
@@ -163,12 +163,20 @@ export class Swag {
     this.initialized = true
     await this.db.tx(async t => {
       if (this.schema) await t.none('create schema if not exists $1:name', [this.schema])
+      // If we add migrations, it might be useful to fetch the version
+      // const [{ version }] = await t.query('select obj_description(\'$1\'::regclass) as version', [this.table])
+
+      //  Todo: Fix issue with the index names being static; we might need to name them based on the table name
       await t.none(`
         create table if not exists $1 (queue text, id text, run_at timestamptz, data jsonb, expression text, locked_until timestamptz, locked_by text, attempts int default 0);
-        create index if not exists idx_jobs_queue_run_at on $1 (queue, greatest(run_at, locked_until));
+        drop index if exists idx_jobs_queue_run_at;
+        create index if not exists idx_jobs_queue_locked_until on $1 (queue, locked_until);
         create unique index if not exists idx_jobs_queue_id on $1 (queue, id);
-        cluster $1 using idx_jobs_queue_run_at;
+        cluster $1 using idx_jobs_queue_locked_until;
       `, [this.table])
+
+      // This is used to keep track of version
+      await t.none('COMMENT ON TABLE $1 is $2;', [this.table, '1'])
     })
   }
 
@@ -235,11 +243,11 @@ export class Swag {
     const nextRun = nextTime(expression)
     if (!nextRun) return
     await this.db.none(`
-      insert into $1 (queue, id, run_at, data, expression)
-      values ($2, $3, $4, $5, $6)
+      insert into $1 (queue, id, run_at, data, expression, locked_until)
+      values ($2, $3, $4, $5, $6, $4)
       on conflict (queue, id) do update set data = $5, expression = $6
     ` +
-    (preserveRunAt ? '' : ', run_at = $4, locked_until = null, attempts = 0'),
+    (preserveRunAt ? '' : ', run_at = $4, locked_until = $4, attempts = 0'),
     [this.table, queue, id, nextRun, data ?? null, expression]
     )
   }
@@ -305,10 +313,10 @@ export class Swag {
       const nextRun = nextTime(expression)
       if (!nextRun) return null
       return this.pgp.as.format(`
-        insert into $1 (queue, id, run_at, data, expression)
-        values ($2, $3, $4, $5, $6)
+        insert into $1 (queue, id, run_at, data, expression, locked_until)
+        values ($2, $3, $4, $5, $6, $4)
         on conflict (queue, id) do update set data = $5, expression = $6
-      ` + (preserveRunAt ? '' : ', run_at = $4, locked_until = null, attempts = 0'),
+      ` + (preserveRunAt ? '' : ', run_at = $4, locked_until = $4, attempts = 0'),
       [this.table, queue, job.id, nextRun, job.data ?? null, expression]
       )
     }).join(';')
