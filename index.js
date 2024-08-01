@@ -5,6 +5,8 @@ import pMap from 'p-map'
 import { nextTime, relativeToISO8601 } from './helpers.js'
 import { parseRelativeAsSeconds } from './relative.js'
 import { durationToISO8601 } from './helpers.js'
+import { format } from './formatSQL.js'
+import * as queries from './sql/postgres.js'
 
 /**
  * Fetches a batch of jobs from the database and processes them,
@@ -25,26 +27,7 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
   /** * @type {import('./swag.d.ts').Job[]} */
   let jobs
   do {
-    jobs = await db.manyOrNone(`
-        set local enable_seqscan = off;
-        set local enable_mergejoin = false;
-        set local enable_hashjoin = false;
-        set local enable_hashagg = false;
-        set local statement_timeout = 15000;
-        update $1
-        set locked_until = now() + interval $5, locked_by = $2, attempts = attempts + 1
-        where id in (
-          select id
-          from $1
-          where queue = $3
-          and locked_until <= now()
-          limit $4
-          for update skip locked
-        )
-        and queue = $3 and locked_until <= now()
-        returning *;
-      `, [options.swag.table, handlerId, queue, options.batchSize, options.lockPeriod]).catch(() => [])
-
+    jobs = await db.query(format(queries.fetchAndLock, [options.swag.table, handlerId, queue, options.batchSize, options.lockPeriod])).catch(() => [])
     if (!jobs.length) return
 
     let heartbeats = 0
@@ -59,12 +42,7 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
       // not currently being processed.
       const jobsToLock = heartbeats++ < options.maxHeartbeats ? lockedJobs : activeJobs
       if (!jobsToLock.size) return
-      await db.none(`
-        update $1
-        set locked_until = now() + interval $2
-        where id in ($3:csv)
-        and queue = $4
-      `, [options.swag.table, options.lockPeriod, Array.from(jobsToLock), queue])
+      await db.query(format(queries.heartbeat, [options.swag.table, options.lockPeriod, Array.from(jobsToLock), queue]))
     }, heartbeatMs)
 
     try {
@@ -114,23 +92,8 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
  */
 function generateFlush (queue, completed, swag) {
   const query = completed.map(({ id, nextRun, expression, lockedUntil }) => {
-    if (nextRun === null) {
-      return swag.pgp.as.format(`
-        delete from $1
-        where queue = $3
-        and id = $2
-      `, [swag.table, id, queue])
-    }
-    return swag.pgp.as.format(`
-      update $1
-      set run_at = $2,
-        locked_until = $6,
-        locked_by = null,
-        attempts = 0
-        ${expression ? ', expression = $5' : ''}
-      where queue = $4
-      and id = $3
-    `, [swag.table, nextRun, id, queue, expression, lockedUntil ?? nextRun])
+    if (nextRun === null) return format(queries.deleteSingle, [swag.table, queue, id])
+    return format(queries.flush, [swag.table, nextRun, id, queue, expression, lockedUntil ?? nextRun])
   }).join(';')
   completed.splice(0, completed.length)
   return query
@@ -155,29 +118,13 @@ export class Swag {
     this.workers = {}
     this.workerId = crypto.randomUUID()
     this.schema = schema
-    this.table = new this.pgp.helpers.TableName({ table, ...(schema && { schema }) })
+    this.table = { table, ...(schema && { schema }) }
   }
 
   async #start () {
     if (this.initialized) return
     this.initialized = true
-    await this.db.tx(async t => {
-      if (this.schema) await t.none('create schema if not exists $1:name', [this.schema])
-      // If we add migrations, it might be useful to fetch the version
-      // const [{ version }] = await t.query('select obj_description(\'$1\'::regclass) as version', [this.table])
-
-      //  Todo: Fix issue with the index names being static; we might need to name them based on the table name
-      await t.none(`
-        create table if not exists $1 (queue text, id text, run_at timestamptz, data jsonb, expression text, locked_until timestamptz, locked_by text, attempts int default 0);
-        drop index if exists idx_jobs_queue_run_at;
-        create index if not exists idx_jobs_queue_locked_until on $1 (queue, locked_until);
-        create unique index if not exists idx_jobs_queue_id on $1 (queue, id);
-        cluster $1 using idx_jobs_queue_locked_until;
-      `, [this.table])
-
-      // This is used to keep track of version
-      await t.none('COMMENT ON TABLE $1 is $2;', [this.table, '1'])
-    })
+    await this.db.query(format(queries.init, [this.table, this.schema, '1']))
   }
 
   /**
@@ -242,14 +189,7 @@ export class Swag {
 
     const nextRun = nextTime(expression)
     if (!nextRun) return
-    await this.db.none(`
-      insert into $1 (queue, id, run_at, data, expression, locked_until)
-      values ($2, $3, $4, $5, $6, $4)
-      on conflict (queue, id) do update set data = $5, expression = $6
-    ` +
-    (preserveRunAt ? '' : ', run_at = $4, locked_until = $4, attempts = 0'),
-    [this.table, queue, id, nextRun, data ?? null, expression]
-    )
+    await this.db.query(format(queries.insert, [this.table, queue, id, nextRun, data ?? null, expression, !preserveRunAt]))
   }
 
   /**
@@ -312,16 +252,10 @@ export class Swag {
 
       const nextRun = nextTime(expression)
       if (!nextRun) return null
-      return this.pgp.as.format(`
-        insert into $1 (queue, id, run_at, data, expression, locked_until)
-        values ($2, $3, $4, $5, $6, $4)
-        on conflict (queue, id) do update set data = $5, expression = $6
-      ` + (preserveRunAt ? '' : ', run_at = $4, locked_until = $4, attempts = 0'),
-      [this.table, queue, job.id, nextRun, job.data ?? null, expression]
-      )
+      return format(queries.insert, [this.table, queue, job.id, nextRun, job.data ?? null, expression, !preserveRunAt])
     }).join(';')
 
-    await this.db.tx(t => t.none(query))
+    await this.db.query(`begin; ${query}; commit;`)
   }
 
   /**
@@ -330,8 +264,8 @@ export class Swag {
     * @param {string} [id] - The unique identifier for the job.
     */
   async remove (queue, id) {
-    if (!id) return this.db.none('delete from $1 where queue = $2', [this.table, queue])
-    return this.db.none('delete from $1 where queue = $2 and id = $3', [this.table, queue, id])
+    if (!id) return this.db.query(format(queries.deleteQueue, [this.table, queue]))
+    return this.db.query(format(queries.deleteSingle, [this.table, queue, id]))
   }
 
   /**
@@ -387,7 +321,7 @@ export class Swag {
     const flush = async (force) => {
       if (force) while (active) await new Promise(resolve => setTimeout(resolve, 100))
       if (!completed.length) return
-      return this.db.tx(async t => t.none(generateFlush(queue, completed, this)))
+      return this.db.query(`begin; ${generateFlush(queue, completed, this)}; commit;`)
     }
 
     // On the flush interval, flush the completed jobs

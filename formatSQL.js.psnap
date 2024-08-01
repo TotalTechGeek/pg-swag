@@ -1,0 +1,38 @@
+{
+  "format(\"select * from jobs where id in ($1:csv)\", [1])": {
+    "value": "select * from jobs where id in (1)",
+    "async": false
+  },
+  "format('select * from $1:name', ['jobs'])": {
+    "value": "select * from \"jobs\"",
+    "async": false
+  },
+  "format('select * from jobs where id in ($1:csv)', [[1, 2, 3]])": {
+    "value": "select * from jobs where id in (1, 2, 3)",
+    "async": false
+  },
+  "TableName('jobs')": {
+    "value": "\"jobs\"",
+    "async": false
+  },
+  "TableName('jobs', '`')": {
+    "value": "`jobs`",
+    "async": false
+  },
+  "TableName({ name: 'jobs', schema: 'public' })": {
+    "value": "\"public\".\"jobs\"",
+    "async": false
+  },
+  "TableName({ table: 'jobs' })": {
+    "value": "\"jobs\"",
+    "async": false
+  },
+  "format('$1:line select 1\\n select 2', [true])": {
+    "value": " select 1\n select 2",
+    "async": false
+  },
+  "format('$1:line select 1\\n select 2', [false])": {
+    "value": "\n select 2",
+    "async": false
+  }
+}
