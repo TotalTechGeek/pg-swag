@@ -1,10 +1,8 @@
 import { Swag } from './index.js'
-import { swag, pgConfig } from './setup.test.js'
+// eslint-disable-next-line no-unused-vars
+import { swag, mySqlConfig, sqliteConfig, pgConfigAttached } from './setup.test.js'
 
-const alternate = new Swag({
-  config: pgConfig,
-  dialect: 'postgres'
-})
+const alternate = new Swag(pgConfigAttached)
 
 /**
  * Tries to distribute the work between two instances of the scheduler
