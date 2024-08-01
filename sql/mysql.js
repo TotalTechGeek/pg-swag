@@ -1,3 +1,6 @@
+import { deleteQueue, deleteSingle, flush } from './postgres.js'
+export { deleteQueue, deleteSingle, flush }
+
 export const fetch = `
 select *, attempts + 1 as attempts
 from $1:name
@@ -13,31 +16,7 @@ where id in ($6:csv)
 and queue = $3 and locked_until <= now();
 `
 
-export const heartbeat = `
-update $1:name
-set locked_until = ADDDATE(now(), $2:mysqlInterval)
-where id in ($3:csv)
-and queue = $4
-`
-
-export const deleteSingle = `
-delete from $1:name
-where queue = $2
-and id = $3
-`
-
-export const deleteQueue = 'delete from $1:name where queue = $2'
-
-export const flush = `
-update $1:name
-set run_at = $2,
-  locked_until = $6,
-  locked_by = null,
-  attempts = 0
-  $5:line, expression = $5
-where queue = $4
-and id = $3
-`
+export const heartbeat = 'update $1:name set locked_until = ADDDATE(now(), $2:mysqlInterval) where id in ($3:csv) and queue = $4'
 
 export const init = `
 begin;

@@ -18,19 +18,8 @@ and queue = $3 and locked_until <= now()
 returning *;
 `
 
-export const heartbeat = `
-update $1:name
-set locked_until = now() + interval $2
-where id in ($3:csv)
-and queue = $4
-`
-
-export const deleteSingle = `
-delete from $1:name
-where queue = $2
-and id = $3
-`
-
+export const heartbeat = 'update $1:name set locked_until = now() + interval $2 where id in ($3:csv) and queue = $4'
+export const deleteSingle = 'delete from $1:name where queue = $2 and id = $3'
 export const deleteQueue = 'delete from $1:name where queue = $2'
 
 export const flush = `

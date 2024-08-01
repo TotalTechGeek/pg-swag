@@ -15,12 +15,7 @@ and queue = $3 and locked_until <= datetime('now')
 returning *
 `
 
-export const heartbeat = `
-update $1:name
-set locked_until = datetime('now', $2)
-where id in ($3:csv)
-and queue = $4
-`
+export const heartbeat = 'update $1:name set locked_until = datetime(\'now\', $2) where id in ($3:csv) and queue = $4'
 
 export const init = `
 begin;
