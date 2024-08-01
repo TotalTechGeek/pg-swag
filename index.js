@@ -1,12 +1,17 @@
 // @ts-check
-import pgPromise from 'pg-promise'
 import crypto from 'crypto'
 import pMap from 'p-map'
 import { nextTime, relativeToISO8601 } from './helpers.js'
 import { parseRelativeAsSeconds } from './relative.js'
 import { durationToISO8601 } from './helpers.js'
 import { format } from './formatSQL.js'
-import * as queries from './sql/postgres.js'
+import * as sqlite from './sql/sqlite.js'
+import * as postgres from './sql/postgres.js'
+
+const connections = {
+  postgres,
+  sqlite
+}
 
 /**
  * Fetches a batch of jobs from the database and processes them,
@@ -18,16 +23,16 @@ import * as queries from './sql/postgres.js'
  * @param {string} handlerId
  * @param {string} queue
  * @param {(job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean>} handler
- * @param {any} db
  * @param {any[]} completed
  * @param {{ skipPast: boolean, maxHeartbeats: number, batchSize: number, concurrentJobs: number, lockPeriod: import('./swag.d.ts').Interval, swag: Swag, errorHandler?: (err: any, job: import('./swag.d.ts').Job) => Promise<null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean> }} options
  * @return {Promise<void>}
  */
-async function processBatch (db, handlerId, queue, handler, completed, options) {
+async function processBatch (handlerId, queue, handler, completed, options) {
   /** * @type {import('./swag.d.ts').Job[]} */
   let jobs
   do {
-    jobs = await db.query(format(queries.fetchAndLock, [options.swag.table, handlerId, queue, options.batchSize, options.lockPeriod])).catch(() => [])
+    const queryStr = format(options.swag.queries.fetchAndLock, [options.swag.table, handlerId, queue, options.batchSize, options.lockPeriod], options.swag.dialect)
+    jobs = await options.swag.query(queryStr).catch(() => [])
     if (!jobs.length) return
 
     let heartbeats = 0
@@ -42,7 +47,7 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
       // not currently being processed.
       const jobsToLock = heartbeats++ < options.maxHeartbeats ? lockedJobs : activeJobs
       if (!jobsToLock.size) return
-      await db.query(format(queries.heartbeat, [options.swag.table, options.lockPeriod, Array.from(jobsToLock), queue]))
+      await options.swag.none(format(options.swag.queries.heartbeat, [options.swag.table, options.lockPeriod, Array.from(jobsToLock), queue], options.swag.dialect))
     }, heartbeatMs)
 
     try {
@@ -92,8 +97,8 @@ async function processBatch (db, handlerId, queue, handler, completed, options) 
  */
 function generateFlush (queue, completed, swag) {
   const query = completed.map(({ id, nextRun, expression, lockedUntil }) => {
-    if (nextRun === null) return format(queries.deleteSingle, [swag.table, queue, id])
-    return format(queries.flush, [swag.table, nextRun, id, queue, expression, lockedUntil ?? nextRun])
+    if (nextRun === null) return format(swag.queries.deleteSingle, [swag.table, queue, id], swag.dialect)
+    return format(swag.queries.flush, [swag.table, nextRun, id, queue, expression, lockedUntil ?? nextRun], swag.dialect)
   }).join(';')
   completed.splice(0, completed.length)
   return query
@@ -104,16 +109,29 @@ function generateFlush (queue, completed, swag) {
  */
 export class Swag {
   /**
-   * @param {Parameters<typeof this.pgp>[0]} connectionConfig
+   * @param {{ dialect: 'postgres' | 'sqlite', config: any } | { dialect: 'postgres', query: (str: string) => Promise<any[]>, none?: (str: string) => Promise<any[]> }} connectionConfig
    * @param {{ schema?: string | null, table?: string }} [tableOptions]
    */
   constructor (connectionConfig, {
     schema = null,
     table = 'jobs'
   } = {}) {
-    this.pgp = pgPromise({ ...(schema && { schema }) })
-    this.db = this.pgp(connectionConfig)
     this.initialized = false
+
+    /** @type {'postgres' | 'sqlite'} */
+    this.dialect = connectionConfig.dialect
+
+    this.queries = connections[this.dialect]
+
+    if ('query' in connectionConfig) {
+      this.query = connectionConfig.query
+      this.none = connectionConfig.none ?? connectionConfig.query
+    } else {
+      const { none, query } = this.queries.connect(connectionConfig.config, schema)
+      this.query = query
+      this.none = none ?? query
+    }
+
     /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: (force?: boolean) => Promise<void | null> }>} */
     this.workers = {}
     this.workerId = crypto.randomUUID()
@@ -124,7 +142,7 @@ export class Swag {
   async #start () {
     if (this.initialized) return
     this.initialized = true
-    await this.db.query(format(queries.init, [this.table, this.schema, '1']))
+    await this.none(format(this.queries.init, [this.table, this.schema, '1'], this.dialect))
   }
 
   /**
@@ -189,7 +207,7 @@ export class Swag {
 
     const nextRun = nextTime(expression)
     if (!nextRun) return
-    await this.db.query(format(queries.insert, [this.table, queue, id, nextRun, data ?? null, expression, !preserveRunAt]))
+    await this.none(format(this.queries.insert, [this.table, queue, id, nextRun, data ?? null, expression, !preserveRunAt], this.dialect))
   }
 
   /**
@@ -252,10 +270,10 @@ export class Swag {
 
       const nextRun = nextTime(expression)
       if (!nextRun) return null
-      return format(queries.insert, [this.table, queue, job.id, nextRun, job.data ?? null, expression, !preserveRunAt])
+      return format(this.queries.insert, [this.table, queue, job.id, nextRun, job.data ?? null, expression, !preserveRunAt], this.dialect)
     }).join(';')
 
-    await this.db.query(`begin; ${query}; commit;`)
+    await this.none(`begin; ${query}; commit;`)
   }
 
   /**
@@ -264,8 +282,8 @@ export class Swag {
     * @param {string} [id] - The unique identifier for the job.
     */
   async remove (queue, id) {
-    if (!id) return this.db.query(format(queries.deleteQueue, [this.table, queue]))
-    return this.db.query(format(queries.deleteSingle, [this.table, queue, id]))
+    if (!id) return this.none(format(this.queries.deleteQueue, [this.table, queue], this.dialect))
+    return this.none(format(this.queries.deleteSingle, [this.table, queue, id], this.dialect))
   }
 
   /**
@@ -311,7 +329,7 @@ export class Swag {
       // Prevents more than one "processBatch" from running at the same time for the same queue.
       if (active) return
       active = true
-      processBatch(this.db, this.workerId, queue, handler, completed, processOptions).finally(() => { active = false })
+      processBatch(this.workerId, queue, handler, completed, processOptions).finally(() => { active = false })
     }
 
     setImmediate(run)
@@ -321,7 +339,7 @@ export class Swag {
     const flush = async (force) => {
       if (force) while (active) await new Promise(resolve => setTimeout(resolve, 100))
       if (!completed.length) return
-      return this.db.query(`begin; ${generateFlush(queue, completed, this)}; commit;`)
+      return this.none(`begin; ${generateFlush(queue, completed, this)}; commit;`)
     }
 
     // On the flush interval, flush the completed jobs

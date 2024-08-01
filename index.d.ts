@@ -16,16 +16,18 @@ export function cancelAfter(num: number): (_err: any, job: import("./swag.d.ts")
  */
 export class Swag {
     /**
-     * @param {Parameters<typeof this.pgp>[0]} connectionConfig
+     * @param {{ dialect: 'postgres', config: any }} connectionConfig
      * @param {{ schema?: string | null, table?: string }} [tableOptions]
      */
-    constructor(connectionConfig: Parameters<typeof this.pgp>[0], { schema, table }?: {
+    constructor(connectionConfig: {
+        dialect: "postgres";
+        config: any;
+    }, { schema, table }?: {
         schema?: string | null;
         table?: string;
     });
-    pgp: pgPromise.IMain<{}, import("pg-promise/typescript/pg-subset.js").IClient>;
-    db: pgPromise.IDatabase<{}, import("pg-promise/typescript/pg-subset.js").IClient>;
     initialized: boolean;
+    query: (str: any) => Promise<any>;
     /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: (force?: boolean) => Promise<void | null> }>} */
     workers: Record<string, {
         batcherId: Timer;
@@ -34,7 +36,10 @@ export class Swag {
     }>;
     workerId: `${string}-${string}-${string}-${string}-${string}`;
     schema: string;
-    table: pgPromise.TableName;
+    table: {
+        schema: string;
+        table: string;
+    };
     /**
      * Schedules a job to run either at a specific time or on a repeating interval.
      *
@@ -148,7 +153,7 @@ export class Swag {
       * @param {string} queue - The name of the queue to remove the job from.
       * @param {string} [id] - The unique identifier for the job.
       */
-    remove(queue: string, id?: string): Promise<null>;
+    remove(queue: string, id?: string): Promise<any>;
     /**
      * Creates a handler for a given queue that receives the job information.
      * @param {string} queue The type of job to listen for.
@@ -220,7 +225,6 @@ export class Swag {
     stop(queue: string): Promise<void>;
     #private;
 }
-import pgPromise from 'pg-promise';
 import { durationToISO8601 } from './helpers.js';
 import { relativeToISO8601 } from './helpers.js';
 export { durationToISO8601, relativeToISO8601 };

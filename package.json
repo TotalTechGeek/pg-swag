@@ -2,7 +2,7 @@
   "name": "pg-swag",
   "module": "index.js",
   "type": "module",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "A distributed scheduler with a grin.",
   "keywords": ["pg", "scheduler", "scheduling", "distributed", "postgres", "schedules", "jobs"],
   "license": "MIT",
@@ -36,13 +36,14 @@
     "ts-standard": "^12.0.2"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "pg-promise": "^11.9.0",
+    "better-sqlite3": "11.1.2"
   },
   "dependencies": {
     "cron-parser": "^4.9.0",
     "iso8601-duration": "^2.1.2",
     "p-map": "4.0.0",
-    "pg-promise": "^11.9.0",
     "sqlstring": "^2.3.3"
   },
   "scripts": {

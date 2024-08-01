@@ -61,3 +61,18 @@ insert into $1:name (queue, id, run_at, data, expression, locked_until)
 values ($2, $3, $4, $5:json, $6, $4)
 on conflict (queue, id) do update set data = $5:json, expression = $6
 $7:line , run_at = $4, locked_until = $4, attempts = 0`
+
+/**
+ * @param {any} config
+ * @param {any} schema
+ * @returns
+ */
+export function connect (config, schema = null) {
+  async function connect () {
+    const pgPromise = await import('pg-promise')
+    const pgp = pgPromise.default({ ...(schema && { schema }) })
+    return pgp(config)
+  }
+  const db = connect()
+  return { query: async str => (await db).query(str) }
+}

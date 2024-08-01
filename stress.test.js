@@ -1,7 +1,10 @@
 import { Swag } from './index.js'
 import { swag, pgConfig } from './setup.test.js'
 
-const alternate = new Swag(pgConfig)
+const alternate = new Swag({
+  config: pgConfig,
+  dialect: 'postgres'
+})
 
 /**
  * Tries to distribute the work between two instances of the scheduler
@@ -20,7 +23,7 @@ export async function MultiTest (queue, num, under) {
     })
   }
   await alternate.scheduleMany(queue, schedules)
-  await swag.db.query('VACUUM (ANALYZE) jobs;')
+  await swag.none('VACUUM (ANALYZE) jobs;').catch(() => {})
   const after = new Date()
 
   return new Promise((resolve, reject) => {
@@ -62,7 +65,7 @@ export async function Stress (queue, num, under, batchSize) {
   const after = new Date()
   console.log(`Took ${after - now}ms to schedule ${num} jobs`)
 
-  await swag.db.query('VACUUM (ANALYZE) jobs;')
+  await swag.none('VACUUM (ANALYZE) jobs;').catch(() => {})
   const afterVacuum = new Date()
   console.log(`Took ${afterVacuum - after}ms to vacuum ${num} jobs`)
 

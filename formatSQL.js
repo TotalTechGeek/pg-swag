@@ -5,8 +5,9 @@ import sqlString from 'sqlstring'
  *
  * @param {string} key
  * @param {Record<string,any>} params
+ * @param {string} dialect
  */
-function replace (key, params) {
+function replace (key, params, dialect) {
   if (!Array.isArray(params)) throw new Error('Params was not an array')
   if (key === 'data') return ''
 
@@ -23,7 +24,11 @@ function replace (key, params) {
   if (Array.isArray(params[key]) && modifier !== 'csv') throw new Error('Param is an array, use :csv to format it')
   if (modifier === 'name') return TableName(params[key])
 
-  if (params[key] instanceof Date) return sqlString.escape(params[key].toISOString())
+  if (params[key] instanceof Date) {
+    let dateStr = params[key].toISOString()
+    if (dialect === 'sqlite') dateStr = dateStr.replace('T', ' ').replace('Z', '')
+    return sqlString.escape(dateStr)
+  }
 
   if (params[key] && typeof params[key] === 'object' && !Array.isArray(params[key])) {
     if (modifier !== 'json') throw new Error('Invalid object, use :json to stringify it.')
@@ -48,8 +53,10 @@ function replace (key, params) {
  * :name will format a table name
  *
  * @param {string | string[]} name
+ * @param {Record<string,any>} params
+ * @param {string} dialect
  */
-export function format (sql, params) {
+export function format (sql, params, dialect) {
   const lineRemoval = /\$[0-9]+:line(.*)/g
   sql = sql.replace(lineRemoval, (match, k) => {
     const key = match.match(/\$[0-9]+/)[0]
@@ -57,7 +64,7 @@ export function format (sql, params) {
     if (!params[index - 1]) return ''
     return k
   })
-  return sql.replace(/\$([0-9]+)(:\w+)?/g, (match, key) => replace(match, params))
+  return sql.replace(/\$([0-9]+)(:\w+)?/g, (match, key) => replace(match, params, dialect))
 }
 
 /**

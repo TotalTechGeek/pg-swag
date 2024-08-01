@@ -1,6 +1,7 @@
 import { cancelAfter } from './index.js'
 import { Steps, HeaderTable } from 'pineapple'
 import { swag } from './setup.test.js'
+import { format } from './formatSQL.js'
 
 const { Given, When, Then, Scenario } = Steps()
 
@@ -76,7 +77,7 @@ const runJob = function ({ times, tryFor }) {
           this.job = job
           resolve(job)
         }
-      } else reject(new Error('Somehow got a different job'))
+      } else reject(new Error('Somehow got a different job ' + job.id + ' instead of ' + this.name))
     }, {
       // Massively reduce the polling period to make the test run faster
       pollingPeriod: '100 milliseconds',
@@ -103,33 +104,33 @@ When('I cancel all jobs in the queue', async function () {
 
 Then('I should not see the job in the table', async function () {
   await swag.stop(this.queue) // force a flush
-  const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
+  const results = await swag.query(format('select * from jobs where queue = $1 and id = $2', [this.queue, this.name]))
   if (results.length) throw new Error('Job still exists')
 })
 
 Then('I should be able to see the job locked in the table after {lockedAfter}', async function ({ lockedAfter }) {
   if (lockedAfter === 'now') lockedAfter = new Date()
   if (this.forceFlush) await swag.stop(this.queue)
-  const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
+  const results = await swag.query(format('select * from jobs where queue = $1 and id = $2', [this.queue, this.name]))
   if (results[0].locked_until < new Date(lockedAfter)) throw new Error('Job not locked')
 })
 
 Then('I should see the job scheduled in the past', async function () {
   if (this.forceFlush) await swag.stop(this.queue)
-  const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
+  const results = await swag.query(format('select * from jobs where queue = $1 and id = $2', [this.queue, this.name]))
   if (results[0].run_at > new Date()) throw new Error('Job not scheduled in the past')
 })
 
 Then('I should see the job scheduled in the future', async function () {
   if (this.forceFlush) await swag.stop(this.queue)
-  const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
+  const results = await swag.query(format('select * from jobs where queue = $1 and id = $2', [this.queue, this.name]))
   if (results[0].run_at < new Date()) throw new Error('Job not scheduled in the future')
 })
 
 Then('I should see the run_at match the expression', async function ({ expression }) {
   if (this.forceFlush) await swag.stop(this.queue)
-  const results = await swag.db.query('select * from jobs where queue = $1 and id = $2', [this.queue, this.name])
-  if (results[0].run_at.toISOString() !== new Date(expression).toISOString()) throw new Error('Job not scheduled at the correct time')
+  const results = await swag.query(format('select * from jobs where queue = $1 and id = $2', [this.queue, this.name]))
+  if (new Date(results[0].run_at).toISOString() !== new Date(expression).toISOString()) throw new Error('Job not scheduled at the correct time')
 })
 
 /**
@@ -142,7 +143,8 @@ Then('I should see the run_at match the expression', async function ({ expressio
 export const SimpleRun = Scenario`
 Given a queue {queue}
 When I schedule a job with name {name} to run at {expression}
-Then I should see the job run {times}`
+Then I should see the job run {times}
+When I cancel all jobs in the queue`
 
 /**
  * @test { queue: 'Test', name: 'Date-Based', expression: '2020-01-01' } resolves

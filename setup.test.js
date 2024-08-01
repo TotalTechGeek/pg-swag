@@ -1,3 +1,4 @@
+import pgPromise from 'pg-promise'
 import { Swag } from './index.js'
 process.env.TZ = 'UTC'
 export const pgConfig = {
@@ -6,7 +7,13 @@ export const pgConfig = {
   host: 'localhost'
 }
 
-export const swag = new Swag(pgConfig)
+const pgp = pgPromise()
+const db = pgp(pgConfig)
+
+export const swag = new Swag({
+  query: db.query,
+  dialect: 'postgres'
+})
 
 /**
  * @pineapple_import
