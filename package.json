@@ -38,7 +38,8 @@
   "peerDependencies": {
     "typescript": "^5.0.0",
     "pg-promise": "^11.9.0",
-    "better-sqlite3": "11.1.2"
+    "better-sqlite3": "11.1.2",
+    "mysql2": "3.11.0"
   },
   "dependencies": {
     "cron-parser": "^4.9.0",

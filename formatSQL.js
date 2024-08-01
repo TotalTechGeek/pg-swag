@@ -1,4 +1,6 @@
 import sqlString from 'sqlstring'
+import { parseRelative } from './relative.js'
+import { toSeconds } from 'iso8601-duration'
 
 /**
  * Sanitizes SQL strings by replacing $1, $2, $3, etc with the corresponding parameter
@@ -22,17 +24,26 @@ function replace (key, params, dialect) {
 
   if (!Number.isInteger(key)) throw new Error('Invalid param index')
   if (Array.isArray(params[key]) && modifier !== 'csv') throw new Error('Param is an array, use :csv to format it')
-  if (modifier === 'name') return TableName(params[key])
+  if (modifier === 'name') return TableName(params[key], dialect === 'mysql' ? '`' : '"')
 
   if (params[key] instanceof Date) {
     let dateStr = params[key].toISOString()
     if (dialect === 'sqlite') dateStr = dateStr.replace('T', ' ').replace('Z', '')
+    if (dialect === 'mysql') dateStr = dateStr.replace('T', ' ').replace('Z', '+00:00')
     return sqlString.escape(dateStr)
   }
 
   if (params[key] && typeof params[key] === 'object' && !Array.isArray(params[key])) {
     if (modifier !== 'json') throw new Error('Invalid object, use :json to stringify it.')
     return sqlString.escape(JSON.stringify(params[key]))
+  }
+
+  if (modifier === 'mysqlInterval') {
+    const duration = parseRelative(params[key])
+    // makes a best effort to use months
+    if (duration.months && Object.keys(duration).length === 1) return 'INTERVAL ' + duration.months + ' MONTH'
+    const seconds = toSeconds(duration)
+    return 'INTERVAL ' + seconds + ' SECOND'
   }
 
   return sqlString.escape(params[key])

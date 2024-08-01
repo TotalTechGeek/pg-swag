@@ -16,18 +16,26 @@ export function cancelAfter(num: number): (_err: any, job: import("./swag.d.ts")
  */
 export class Swag {
     /**
-     * @param {{ dialect: 'postgres', config: any }} connectionConfig
+     * @param {{ dialect: keyof typeof connections, config: any } | { dialect: keyof typeof connections, query: (str: string) => Promise<any[]>, none?: (str: string) => Promise<any[]> }} connectionConfig
      * @param {{ schema?: string | null, table?: string }} [tableOptions]
      */
     constructor(connectionConfig: {
-        dialect: "postgres";
+        dialect: keyof typeof connections;
         config: any;
+    } | {
+        dialect: keyof typeof connections;
+        query: (str: string) => Promise<any[]>;
+        none?: (str: string) => Promise<any[]>;
     }, { schema, table }?: {
         schema?: string | null;
         table?: string;
     });
     initialized: boolean;
+    /** @type {keyof typeof connections} */
+    dialect: keyof typeof connections;
+    queries: typeof sqlite | typeof postgres | typeof mysql;
     query: (str: any) => Promise<any>;
+    none: any;
     /** @type {Record<string, { batcherId: Timer, flushId: Timer, flush: (force?: boolean) => Promise<void | null> }>} */
     workers: Record<string, {
         batcherId: Timer;
@@ -225,6 +233,14 @@ export class Swag {
     stop(queue: string): Promise<void>;
     #private;
 }
+declare namespace connections {
+    export { postgres };
+    export { sqlite };
+    export { mysql };
+}
+import * as sqlite from './sql/sqlite.js';
+import * as postgres from './sql/postgres.js';
+import * as mysql from './sql/mysql.js';
 import { durationToISO8601 } from './helpers.js';
 import { relativeToISO8601 } from './helpers.js';
 export { durationToISO8601, relativeToISO8601 };

@@ -32,6 +32,8 @@ create unique index if not exists idx_jobs_queue_id on $1:name (queue, id);
 commit;
 `
 
+export const vacuumTest = ''
+
 /**
  * @param {any} config
  * @param {any} schema

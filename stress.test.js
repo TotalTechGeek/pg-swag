@@ -23,7 +23,7 @@ export async function MultiTest (queue, num, under) {
     })
   }
   await alternate.scheduleMany(queue, schedules)
-  await swag.none('VACUUM (ANALYZE) jobs;').catch(() => {})
+  await swag.none(swag.queries.vacuumTest).catch(() => {})
   const after = new Date()
 
   return new Promise((resolve, reject) => {
@@ -65,7 +65,7 @@ export async function Stress (queue, num, under, batchSize) {
   const after = new Date()
   console.log(`Took ${after - now}ms to schedule ${num} jobs`)
 
-  await swag.none('VACUUM (ANALYZE) jobs;').catch(() => {})
+  await swag.none(swag.queries.vacuumTest).catch(() => {})
   const afterVacuum = new Date()
   console.log(`Took ${afterVacuum - after}ms to vacuum ${num} jobs`)
 

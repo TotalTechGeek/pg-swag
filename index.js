@@ -4,13 +4,16 @@ import pMap from 'p-map'
 import { nextTime, relativeToISO8601 } from './helpers.js'
 import { parseRelativeAsSeconds } from './relative.js'
 import { durationToISO8601 } from './helpers.js'
+
 import { format } from './formatSQL.js'
 import * as sqlite from './sql/sqlite.js'
 import * as postgres from './sql/postgres.js'
+import * as mysql from './sql/mysql.js'
 
 const connections = {
   postgres,
-  sqlite
+  sqlite,
+  mysql
 }
 
 /**
@@ -31,8 +34,15 @@ async function processBatch (handlerId, queue, handler, completed, options) {
   /** * @type {import('./swag.d.ts').Job[]} */
   let jobs
   do {
-    const queryStr = format(options.swag.queries.fetchAndLock, [options.swag.table, handlerId, queue, options.batchSize, options.lockPeriod], options.swag.dialect)
-    jobs = await options.swag.query(queryStr).catch(() => [])
+    if ('fetch' in options.swag.queries) {
+      const queryStr = format(options.swag.queries.fetch, [options.swag.table, handlerId, queue, options.batchSize], options.swag.dialect)
+      jobs = await options.swag.query(queryStr).catch(() => [])
+      if (jobs.length) await options.swag.none(format(options.swag.queries.lock, [options.swag.table, handlerId, queue, options.batchSize, options.lockPeriod, jobs.map(j => j.id)], options.swag.dialect))
+    } else {
+      const queryStr = format(options.swag.queries.fetchAndLock, [options.swag.table, handlerId, queue, options.batchSize, options.lockPeriod], options.swag.dialect)
+      jobs = await options.swag.query(queryStr).catch(() => [])
+    }
+
     if (!jobs.length) return
 
     let heartbeats = 0
@@ -109,7 +119,7 @@ function generateFlush (queue, completed, swag) {
  */
 export class Swag {
   /**
-   * @param {{ dialect: 'postgres' | 'sqlite', config: any } | { dialect: 'postgres', query: (str: string) => Promise<any[]>, none?: (str: string) => Promise<any[]> }} connectionConfig
+   * @param {{ dialect: keyof typeof connections, config: any } | { dialect: keyof typeof connections, query: (str: string) => Promise<any[]>, none?: (str: string) => Promise<any[]> }} connectionConfig
    * @param {{ schema?: string | null, table?: string }} [tableOptions]
    */
   constructor (connectionConfig, {
@@ -118,7 +128,7 @@ export class Swag {
   } = {}) {
     this.initialized = false
 
-    /** @type {'postgres' | 'sqlite'} */
+    /** @type {keyof typeof connections} */
     this.dialect = connectionConfig.dialect
 
     this.queries = connections[this.dialect]
@@ -127,6 +137,7 @@ export class Swag {
       this.query = connectionConfig.query
       this.none = connectionConfig.none ?? connectionConfig.query
     } else {
+      // @ts-expect-error This is a valid assignment
       const { none, query } = this.queries.connect(connectionConfig.config, schema)
       this.query = query
       this.none = none ?? query
@@ -142,7 +153,10 @@ export class Swag {
   async #start () {
     if (this.initialized) return
     this.initialized = true
-    await this.none(format(this.queries.init, [this.table, this.schema, '1'], this.dialect))
+    await this.none(format(this.queries.init, [this.table, this.schema, '1'], this.dialect)).catch(err => {
+      if (err.message.includes('Duplicate')) return
+      throw err
+    })
   }
 
   /**

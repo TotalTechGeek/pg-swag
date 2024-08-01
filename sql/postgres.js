@@ -62,6 +62,8 @@ values ($2, $3, $4, $5:json, $6, $4)
 on conflict (queue, id) do update set data = $5:json, expression = $6
 $7:line , run_at = $4, locked_until = $4, attempts = 0`
 
+export const vacuumTest = 'vacuum (analyze) jobs'
+
 /**
  * @param {any} config
  * @param {any} schema
