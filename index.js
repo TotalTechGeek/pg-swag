@@ -85,7 +85,8 @@ async function processBatch (handlerId, queue, handler, completed, options) {
             // If the expression is returned in an object, use that, otherwise use the job's expression.
             nextRun: nextTime(nextExpression, job.run_at, options.skipPast ? new Date() : undefined),
             expression: typeof result === 'object' && 'expression' in result && result.expression,
-            lockedUntil: (typeof result === 'object' && 'lockedUntil' in result && result.lockedUntil) || null
+            lockedUntil: (typeof result === 'object' && 'lockedUntil' in result && result.lockedUntil) || null,
+            updateData: (typeof result === 'object' && '$set' in result && result.$set) || null
           })
         }
 
@@ -101,14 +102,14 @@ async function processBatch (handlerId, queue, handler, completed, options) {
 /**
  * Generates the query to update completed jobs
  * @param {string} queue
- * @param {{ id: string, nextRun: Date, expression: null | string, lockedUntil?: Date | null }[]} completed
+ * @param {{ id: string, nextRun: Date, expression: null | string, lockedUntil?: Date | null, updateData?: {} | null }[]} completed
  * @param {Swag} swag
  * @returns {string}
  */
 function generateFlush (queue, completed, swag) {
-  const query = completed.map(({ id, nextRun, expression, lockedUntil }) => {
+  const query = completed.map(({ id, nextRun, expression, lockedUntil, updateData }) => {
     if (nextRun === null) return format(swag.queries.deleteSingle, [swag.table, queue, id], swag.dialect)
-    return format(swag.queries.flush, [swag.table, nextRun, id, queue, expression, lockedUntil ?? nextRun], swag.dialect)
+    return format(swag.queries.flush, [swag.table, nextRun, id, queue, expression, lockedUntil ?? nextRun, updateData], swag.dialect)
   }).join(';')
   completed.splice(0, completed.length)
   return query

@@ -19,11 +19,9 @@
  * @test '10ms'
  * @test '50 milliseconds'
  * @test 'ninety milliseconds' throws
- * @returns {import('iso8601-duration').Duration & {recurrences?: number}}
+ * @returns {import('./types.d.ts').SpecialDuration}
  */
-export function parseRelative(expression: string): import("iso8601-duration").Duration & {
-    recurrences?: number;
-};
+export function parseRelative(expression: string): any;
 /**
  * @test '1 day' returns 86400
  * @test '50ms' returns 0.05

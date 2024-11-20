@@ -29,6 +29,7 @@ set run_at = $2,
   locked_by = null,
   attempts = 0
   $5:line, expression = $5
+  $7:line, data = data || $7:json
 where queue = $4
 and id = $3
 `

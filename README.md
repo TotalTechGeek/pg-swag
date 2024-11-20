@@ -30,9 +30,12 @@ Then, you can use it in your code like so:
 import { Swag } from 'pg-swag';
 
 const swag = new Swag({
-    host: 'localhost',
-    user: 'postgres',
-    password: 'password',
+    dialect: 'postgres',
+    config: {
+        host: 'localhost',
+        user: 'postgres',
+        password: 'password',
+    }
 })
 
 await swag.on('email', async job => {
@@ -44,6 +47,17 @@ await swag.schedule('email', {
     email: 'bob@example.com',
     body: 'Hello, Bob!'
 }, 'R/2024-07-01/P1D')
+```
+
+Alternatively, you can pass in a query method like so:
+
+```javascript
+import { Swag } from 'pg-swag';
+
+const swag = new Swag({
+    dialect: 'postgres',
+    query: db.query 
+})
 ```
 
 ### Supported Scheduling

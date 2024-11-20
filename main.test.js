@@ -51,6 +51,12 @@ Given('I want a lock period of {lockPeriod}', function ({ lockPeriod }) {
   this.lockPeriod = lockPeriod
 })
 
+Given('I want to set a data value to {value}', function ({ value }) {
+  this.returned = {
+    $set: { value }
+  }
+})
+
 Given('I want a flush period of {flushPeriod}', function ({ flushPeriod }) {
   this.flushPeriod = flushPeriod
 })
@@ -78,6 +84,7 @@ const runJob = function ({ times, tryFor }) {
           resolve(job)
         }
       } else reject(new Error('Somehow got a different job ' + job.id + ' instead of ' + this.name))
+      return this.returned
     }, {
       // Massively reduce the polling period to make the test run faster
       pollingPeriod: '100 milliseconds',
@@ -133,6 +140,12 @@ Then('I should see the run_at match the expression', async function ({ expressio
   if (new Date(results[0].run_at).toISOString() !== new Date(expression).toISOString()) throw new Error('Job not scheduled at the correct time')
 })
 
+Then('the job should have a data value of {value}', async function ({ value }) {
+  if (this.forceFlush) await swag.stop(this.queue)
+  const results = await swag.query(format('select * from jobs where queue = $1 and id = $2', [this.queue, this.name]))
+  if (results[0].data.value !== value) throw new Error('Job does not have the correct data value')
+})
+
 /**
  * @test { queue: 'Test', name: 'Date-Based', expression: '2020-01-01', times: 1 } resolves
  * @test { queue: 'Test', name: 'Repeating-Schedule', expression: 'R/PT1S', times: 2 } resolves
@@ -144,6 +157,17 @@ export const SimpleRun = Scenario`
 Given a queue {queue}
 When I schedule a job with name {name} to run at {expression}
 Then I should see the job run {times}
+When I cancel all jobs in the queue`
+
+/**
+ * @test { queue: 'TestData', name: 'Date-Based', expression: 'R/PT5H', times: 1, value: 'Test' } resolves
+ */
+export const DataRun = Scenario`
+Given a queue {queue}
+And I want to set a data value to {value}
+When I schedule a job with name {name} to run at {expression}
+Then I should see the job run {times}
+And the job should have a data value of {value}
 When I cancel all jobs in the queue`
 
 /**

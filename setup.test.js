@@ -34,7 +34,7 @@ export const pgConfigAttached = {
   dialect: 'postgres'
 }
 
-export const swag = new Swag(mySqlConfig)
+export const swag = new Swag(pgConfig)
 
 /**
  * @pineapple_import

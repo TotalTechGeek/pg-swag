@@ -35,7 +35,7 @@ function replace (key, params, dialect) {
 
   if (params[key] && typeof params[key] === 'object' && !Array.isArray(params[key])) {
     if (modifier !== 'json') throw new Error('Invalid object, use :json to stringify it.')
-    return sqlString.escape(JSON.stringify(params[key]))
+    return sqlString.escape(JSON.stringify(params[key])).replace(/\\"/g, '"')
   }
 
   if (modifier === 'mysqlInterval') {

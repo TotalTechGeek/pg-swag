@@ -6,6 +6,7 @@
  * @test date('2020-01-01'), {days: 1} returns date('2020-01-02')
  * @test date('2020-01-01'), {months: 1} returns date('2020-02-01')
  * @test date('2020-01-01'), {seconds: 30}
+ * @test date('2020-01-01'), {years: 1, months: 1, weeks: 1, days: 1, hours: 1, seconds: 30, minutes: 1 } returns date('2021-02-09T01:01:30.000Z')
  *
  * @pineapple_import
  */
@@ -137,7 +138,7 @@ export function testGenerateRepeatingISO(expression: string): Date[];
  * @test { days: 1 }, date() returns isCloseTo(@, addDuration(date(), { days: 1 }))
  *
  */
-export function nextTime(expression: string | Date | import("./types.d.ts").SpecialDuration, from?: string | Date, after?: string | Date): Date | null;
+export function nextTime(expression: string | Date | any, from?: string | Date, after?: string | Date): Date | null;
 /**
  * This is an attempt to convert a relative time expression into an ISO8601 Duration
  * @param {string} expression
@@ -172,5 +173,9 @@ export function relativeToISO8601(expression: string, from?: string | Date): str
  * @test { years: 1 } returns 'R/P1Y'
  * @test { days: 1, hours: 1, seconds: 30 } returns 'R/P1DT1H30S'
  * @test { days: 1, recurrences: 0 } returns 'R0/P1D'
+ * @test { startDate: '2020-01-01' } throws
+ * @test { days: 1, startDate: '2020-01-01' }
+ * @test { days: 2, startDate: '2020-01-01', endDate: '2021-01-01' }
+ * @test { weeks: 1 } returns 'R/P1W'
  */
-export function durationToISO8601(duration: import("./types.d.ts").SpecialDuration): string;
+export function durationToISO8601(duration: any): string;
