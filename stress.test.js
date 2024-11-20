@@ -2,7 +2,7 @@ import { Swag } from './index.js'
 // eslint-disable-next-line no-unused-vars
 import { swag, mySqlConfig, sqliteConfig, pgConfigAttached } from './setup.test.js'
 
-const alternate = new Swag(pgConfigAttached)
+const alternate = new Swag(mySqlConfig)
 
 /**
  * Tries to distribute the work between two instances of the scheduler

@@ -21,9 +21,9 @@ export const heartbeat = 'update $1:name set locked_until = ADDDATE(now(), $2:my
 export const init = `
 begin;
 $2:line create schema if not exists $2:name;
-create table if not exists $1:name (queue text, id text, run_at DATETIME, data json, expression text, locked_until DATETIME, locked_by text, attempts int default 0);
-create index idx_jobs_queue_locked_until on $1:name (queue(64), locked_until);
-create unique index idx_jobs_queue_id on $1:name (queue(64), id(64));
+create table if not exists $1:name (queue text not null, id text not null, run_at DATETIME, data json, expression text, locked_until DATETIME not null, locked_by text, attempts int default 0);
+create unique index idx_jobs_queue_locked_until on $1:name (queue(32), locked_until, id(20));
+create unique index idx_jobs_queue_id on $1:name (queue(32), id(20));
 commit;
 `
 

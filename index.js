@@ -155,6 +155,7 @@ export class Swag {
     this.initialized = true
     await this.none(format(this.queries.init, [this.table, this.schema, '1'], this.dialect)).catch(err => {
       if (err.message.includes('Duplicate')) return
+      if (err.message.includes('primary')) return
       throw err
     })
   }
