@@ -34,6 +34,10 @@ async function processBatch (handlerId, queue, handler, completed, options) {
   /** * @type {import('./swag.d.ts').Job[]} */
   let jobs
   do {
+    // Right now, this does technically allow us to exceed the batchSize if we allow multiple fetches
+    if (options.swag.lockedJobs.size >= options.batchSize) return
+    if (options.swag.activeJobs.size >= options.concurrentJobs) return
+
     if ('fetch' in options.swag.queries) {
       const queryStr = format(options.swag.queries.fetch, [options.swag.table, handlerId, queue, options.batchSize], options.swag.dialect)
       jobs = await options.swag.query(queryStr).catch(() => [])
@@ -46,8 +50,10 @@ async function processBatch (handlerId, queue, handler, completed, options) {
     if (!jobs.length) return
 
     let heartbeats = 0
-    const lockedJobs = new Set(jobs.map(job => job.id))
-    const activeJobs = new Set()
+    const lockedJobs = options.swag.lockedJobs
+    for (const job of jobs) lockedJobs.add(job.id)
+
+    const activeJobs = options.swag.activeJobs
 
     const heartbeatMs = parseRelativeAsSeconds(options.lockPeriod) * 1000 / 2
 
@@ -56,7 +62,10 @@ async function processBatch (handlerId, queue, handler, completed, options) {
       // Allows us to specify a maximum number of heartbeats to prevent infinite locking of jobs
       // not currently being processed.
       const jobsToLock = heartbeats++ < options.maxHeartbeats ? lockedJobs : activeJobs
-      if (!jobsToLock.size) return
+      if (!jobsToLock.size) {
+        clearInterval(heartbeat)
+        return
+      }
       await options.swag.none(format(options.swag.queries.heartbeat, [options.swag.table, options.lockPeriod, Array.from(jobsToLock), queue], options.swag.dialect))
     }, heartbeatMs)
 
@@ -92,7 +101,7 @@ async function processBatch (handlerId, queue, handler, completed, options) {
 
         lockedJobs.delete(job.id)
         activeJobs.delete(job.id)
-      }, { concurrency: options.concurrentJobs })
+      }, { concurrency: options.concurrentJobs - activeJobs.size })
     } finally {
       clearInterval(heartbeat)
     }
@@ -128,6 +137,12 @@ export class Swag {
     table = 'jobs'
   } = {}) {
     this.initialized = false
+
+    /** @type {Set<string>} */
+    this.lockedJobs = new Set()
+
+    /** @type {Set<string>} */
+    this.activeJobs = new Set()
 
     /** @type {keyof typeof connections} */
     this.dialect = connectionConfig.dialect
@@ -322,7 +337,6 @@ export class Swag {
     this.stop(queue)
     /** @type {any[]} */
     const completed = []
-    let active = false
 
     /** @type {import('./swag.d.ts').Interval} */
     // @ts-expect-error This is a valid assignment
@@ -343,9 +357,8 @@ export class Swag {
 
     const run = () => {
       // Prevents more than one "processBatch" from running at the same time for the same queue.
-      if (active) return
-      active = true
-      processBatch(this.workerId, queue, handler, completed, processOptions).finally(() => { active = false })
+      if (this.activeJobs.size > processOptions.concurrentJobs) return
+      processBatch(this.workerId, queue, handler, completed, processOptions)
     }
 
     setImmediate(run)
@@ -353,7 +366,7 @@ export class Swag {
     const batcherId = setInterval(run, processOptions.pollingPeriod)
 
     const flush = async (force) => {
-      if (force) while (active) await new Promise(resolve => setTimeout(resolve, 100))
+      if (force) while (this.activeJobs.size) await new Promise(resolve => setTimeout(resolve, 100))
       if (!completed.length) return
       return this.none(`begin; ${generateFlush(queue, completed, this)}; commit;`)
     }

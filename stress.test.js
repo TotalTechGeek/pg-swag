@@ -40,7 +40,7 @@ export async function MultiTest (queue, num, under) {
       }
     }
 
-    swag.on(queue, f('swag'), { batchSize: 10, pollingPeriod: 1000, concurrentJobs: 1, flushPeriod: '10 seconds', maxHeartbeats: 1 })
+    swag.on(queue, f('swag'), { batchSize: 10, pollingPeriod: 1000, concurrentJobs: 2, flushPeriod: '10 seconds', maxHeartbeats: 1 })
     alternate.on(queue, f('alternate'), { batchSize: 10, pollingPeriod: 1000, concurrentJobs: 1, flushPeriod: '10 seconds', maxHeartbeats: 1 })
   })
 }
