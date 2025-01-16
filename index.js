@@ -35,7 +35,8 @@ async function processBatch (handlerId, queue, handler, completed, options) {
   let jobs
   do {
     // Right now, this does technically allow us to exceed the batchSize if we allow multiple fetches
-    if (options.swag.lockedJobs.size >= options.batchSize) return
+    // Todo: Evaluate the merits of making the next line a configurable option.
+    // if (options.swag.lockedJobs.size >= options.batchSize) return
     if (options.swag.activeJobs.size >= options.concurrentJobs) return
 
     if ('fetch' in options.swag.queries) {
