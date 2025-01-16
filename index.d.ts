@@ -31,6 +31,10 @@ export class Swag {
         table?: string;
     });
     initialized: boolean;
+    /** @type {Set<string>} */
+    lockedJobs: Set<string>;
+    /** @type {Set<string>} */
+    activeJobs: Set<string>;
     /** @type {keyof typeof connections} */
     dialect: keyof typeof connections;
     queries: typeof sqlite | typeof postgres | typeof mysql;

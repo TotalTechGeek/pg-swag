@@ -2,7 +2,7 @@
   "name": "pg-swag",
   "module": "index.js",
   "type": "module",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A distributed scheduler with a grin.",
   "keywords": ["pg", "scheduler", "scheduling", "distributed", "postgres", "schedules", "jobs"],
   "license": "MIT",
@@ -48,6 +48,7 @@
     "sqlstring": "^2.3.3"
   },
   "scripts": {
+    "prepublish": "bun run build",
     "build": "run-script-os",
     "build:win32": "rm -rf dist && rollup index.js --file dist/cjs/index.js --format cjs --exports named && rollup index.js --file dist/esm/index.js --format esm && echo { \"type\": \"module\" } > dist/esm/package.json && echo { \"type\": \"commonjs\" } > dist/cjs/package.json && cd dist && exitzero standard --fix */*.js && tsc ../index.js --declaration --allowJs --emitDeclarationOnly --target ESNext --module NodeNext --skipLibCheck",
     "build:default": "rm -rf dist && rollup index.js --file dist/cjs/index.js --format cjs --exports named && rollup index.js --file dist/esm/index.js --format esm && echo '{ \"type\": \"module\" }' > dist/esm/package.json && echo '{ \"type\": \"commonjs\" }' > dist/cjs/package.json && cd dist && exitzero standard --fix */*.js && tsc ../index.js --declaration --allowJs --emitDeclarationOnly --target ESNext --module NodeNext --skipLibCheck",
