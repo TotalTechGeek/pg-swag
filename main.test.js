@@ -1,6 +1,6 @@
 import { cancelAfter } from './index.js'
 import { Steps, HeaderTable } from 'pineapple'
-import { swag } from './setup.test.js'
+import { swag, db } from './setup.test.js'
 import { format } from './formatSQL.js'
 
 const { Given, When, Then, Scenario } = Steps()
@@ -107,6 +107,25 @@ When('I cancel the job', async function () {
 
 When('I cancel all jobs in the queue', async function () {
   await swag.remove(this.queue)
+})
+
+When('I schedule jobs {names} in a transaction that {outcome}', async function ({ names, outcome }) {
+  this.names = names
+  await db.tx(async t => {
+    const tx = swag.withQuery(str => t.any(str))
+    await tx.scheduleMany(this.queue, names.map(id => ({ id, expression: '3000-01-01', data: {} })))
+    if (outcome === 'rolls back') throw new Error('rollback')
+  }).catch(err => { if (err.message !== 'rollback') throw err })
+})
+
+When('I remove jobs {ids}', async function ({ ids }) {
+  await swag.removeMany(this.queue, ids)
+})
+
+Then('I should see jobs {expected} in the table', async function ({ expected }) {
+  const results = await swag.query(format('select id from jobs where queue = $1 order by id', [this.queue]))
+  const ids = results.map(r => r.id)
+  if (JSON.stringify(ids) !== JSON.stringify(expected)) throw new Error(`Expected ${JSON.stringify(expected)}, found ${JSON.stringify(ids)}`)
 })
 
 Then('I should not see the job in the table', async function () {
@@ -341,8 +360,27 @@ Then I should be able to see the job locked in the table after {lockedAfter}
 `
 
 /**
+ * @test { queue: 'Tx-Rollback', names: ['a', 'b'], outcome: 'rolls back', expected: [] } resolves
+ * @test { queue: 'Tx-Commit', names: ['a', 'b'], outcome: 'commits', expected: ['a', 'b'] } resolves
+ */
+export const ScheduleInTransaction = Scenario`
+Given a queue {queue}
+When I schedule jobs {names} in a transaction that {outcome}
+Then I should see jobs {expected} in the table`
+
+/**
+ * @test { queue: 'Remove-Many', names: ['a', 'b', 'c'], outcome: 'commits', ids: ['a', 'c'], expected: ['b'] } resolves
+ */
+export const RemoveMany = Scenario`
+Given a queue {queue}
+When I schedule jobs {names} in a transaction that {outcome}
+And I remove jobs {ids}
+Then I should see jobs {expected} in the table`
+
+/**
  * @beforeAll
  */
 export async function TearDown () {
   await swag.remove('Preservation').catch(() => {})
+  for (const queue of ['Tx-Rollback', 'Tx-Commit', 'Remove-Many']) await swag.remove(queue).catch(() => {})
 }

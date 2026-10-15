@@ -237,3 +237,18 @@ Swag.onError(async (err, job) => {
     return { lockedUntil: new Date(Date.now() + 1000 * 60 * job.attempts) }
 })
 ```
+
+## Scheduling inside a transaction
+
+`withQuery` returns a view of the scheduler that sends `schedule`, `scheduleMany`, `remove` and `removeMany` through a query function you pass, so jobs commit or roll back with the rest of your writes. The view never creates the table, so call `await swag.init()` once at boot. Don't run workers from it.
+
+```js
+await swag.init()
+
+await db.tx(async t => {
+  await t.none('update orders set status = $1 where id = $2', ['paid', orderId])
+  await swag.withQuery(str => t.any(str)).schedule('receipt', orderId, new Date(), { orderId })
+})
+```
+
+`removeMany(queue, ids)` deletes several jobs by id in one statement.

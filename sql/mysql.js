@@ -1,5 +1,5 @@
-import { deleteQueue, deleteSingle, flush } from './postgres.js'
-export { deleteQueue, deleteSingle, flush }
+import { deleteQueue, deleteMany, deleteSingle, flush } from './postgres.js'
+export { deleteQueue, deleteMany, deleteSingle, flush }
 
 export const fetch = `
 select *, attempts + 1 as attempts

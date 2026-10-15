@@ -1,5 +1,5 @@
-import { deleteSingle, deleteQueue, flush, insert } from './postgres.js'
-export { deleteSingle, deleteQueue, flush, insert }
+import { deleteSingle, deleteMany, deleteQueue, flush, insert } from './postgres.js'
+export { deleteSingle, deleteMany, deleteQueue, flush, insert }
 
 export const fetchAndLock = `
 update $1:name
