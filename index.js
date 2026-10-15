@@ -138,6 +138,7 @@ export class Swag {
     table = 'jobs'
   } = {}) {
     this.initialized = false
+    this.inTransaction = false
 
     /** @type {Set<string>} */
     this.lockedJobs = new Set()
@@ -167,7 +168,11 @@ export class Swag {
     this.table = { table, ...(schema && { schema }) }
   }
 
-  async #start () {
+  /**
+   * Creates the jobs table and indexes if they do not exist. Runs automatically on first use,
+   * but call it at boot if you plan to schedule through `withQuery`, which never initializes.
+   */
+  async init () {
     if (this.initialized) return
     this.initialized = true
     await this.none(format(this.queries.init, [this.table, this.schema, '1'], this.dialect)).catch(err => {
@@ -230,7 +235,7 @@ export class Swag {
     * If a job by the same ID already exists in the queue, it will be replaced.
     */
   async schedule (queue, id, expression, data, preserveRunAt = false) {
-    await this.#start()
+    await this.init()
     if (expression instanceof Date) expression = expression.toISOString()
 
     // While "nextTime" does support this object, converting it here is cleaner for the
@@ -293,7 +298,7 @@ export class Swag {
     * If a job by the same ID already exists in the queue, it will be replaced.
    */
   async scheduleMany (queue, jobs, preserveRunAt = false) {
-    await this.#start()
+    await this.init()
 
     const query = jobs.map(job => {
       let expression = job.expression
@@ -305,7 +310,35 @@ export class Swag {
       return format(this.queries.insert, [this.table, queue, job.id, nextRun, job.data ?? null, expression, !preserveRunAt], this.dialect)
     }).join(';')
 
-    await this.none(`begin; ${query}; commit;`)
+    if (!query) return
+    // Inside a caller's transaction the statements are already atomic, and a nested commit would end it early.
+    await this.none(this.inTransaction ? query : `begin; ${query}; commit;`)
+  }
+
+  /**
+   * Returns a view of this scheduler that runs `schedule`, `scheduleMany` and `remove*` through
+   * the given query function, typically one bound to an open transaction so jobs commit or roll
+   * back with the rest of your writes. The view never initializes the table (call `init()` at boot)
+   * and should not be used to run workers.
+   *
+   * @param {(str: string) => Promise<any>} query
+   * @returns {Swag}
+   *
+   * @example
+   * ```
+   * await db.tx(async t => {
+   *   await t.none('update orders set status = $1 where id = $2', ['paid', orderId])
+   *   await swag.withQuery(str => t.any(str)).schedule('receipt', orderId, new Date(), { orderId })
+   * })
+   * ```
+   */
+  withQuery (query) {
+    const view = Object.create(this)
+    view.query = query
+    view.none = query
+    view.inTransaction = true
+    view.init = async () => {}
+    return view
   }
 
   /**
@@ -316,6 +349,16 @@ export class Swag {
   async remove (queue, id) {
     if (!id) return this.none(format(this.queries.deleteQueue, [this.table, queue], this.dialect))
     return this.none(format(this.queries.deleteSingle, [this.table, queue, id], this.dialect))
+  }
+
+  /**
+    * Removes several jobs from a queue in one statement.
+    * @param {string} queue - The name of the queue to remove the jobs from.
+    * @param {string[]} ids - The unique identifiers of the jobs.
+    */
+  async removeMany (queue, ids) {
+    if (!ids.length) return
+    return this.none(format(this.queries.deleteMany, [this.table, queue, ids], this.dialect))
   }
 
   /**
@@ -334,7 +377,7 @@ export class Swag {
    * @returns {{ onError: (handler: (err: any, job: import('./swag.d.ts').Job) => void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean | Promise<void | null | undefined | { expression: string | Date | import('./types.d.ts').SpecialDuration } | { lockedUntil: Date } | boolean>) => void}}
    */
   on (queue, handler, options) {
-    this.#start()
+    this.init()
     this.stop(queue)
     /** @type {any[]} */
     const completed = []

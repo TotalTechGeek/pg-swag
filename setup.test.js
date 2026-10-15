@@ -27,7 +27,7 @@ export const sqliteConfig = {
 }
 
 const pgp = pgPromise()
-const db = pgp(pgConfig.config)
+export const db = pgp(pgConfig.config)
 
 export const pgConfigAttached = {
   query: db.query,
