@@ -31,6 +31,7 @@ export class Swag {
         table?: string;
     });
     initialized: boolean;
+    inTransaction: boolean;
     /** @type {Set<string>} */
     lockedJobs: Set<string>;
     /** @type {Set<string>} */
@@ -52,6 +53,11 @@ export class Swag {
         schema: string;
         table: string;
     };
+    /**
+     * Creates the jobs table and indexes if they do not exist. Runs automatically on first use,
+     * but call it at boot if you plan to schedule through `withQuery`, which never initializes.
+     */
+    init(): Promise<void>;
     /**
      * Schedules a job to run either at a specific time or on a repeating interval.
      *
@@ -161,11 +167,35 @@ export class Swag {
         data: any;
     }[], preserveRunAt?: boolean): Promise<void>;
     /**
+     * Returns a view of this scheduler that runs `schedule`, `scheduleMany` and `remove*` through
+     * the given query function, typically one bound to an open transaction so jobs commit or roll
+     * back with the rest of your writes. The view never initializes the table (call `init()` at boot)
+     * and should not be used to run workers.
+     *
+     * @param {(str: string) => Promise<any>} query
+     * @returns {Swag}
+     *
+     * @example
+     * ```
+     * await db.tx(async t => {
+     *   await t.none('update orders set status = $1 where id = $2', ['paid', orderId])
+     *   await swag.withQuery(str => t.any(str)).schedule('receipt', orderId, new Date(), { orderId })
+     * })
+     * ```
+     */
+    withQuery(query: (str: string) => Promise<any>): Swag;
+    /**
       * Removes a job / schedule from the scheduler.
       * @param {string} queue - The name of the queue to remove the job from.
       * @param {string} [id] - The unique identifier for the job.
       */
     remove(queue: string, id?: string): Promise<any>;
+    /**
+      * Removes several jobs from a queue in one statement.
+      * @param {string} queue - The name of the queue to remove the jobs from.
+      * @param {string[]} ids - The unique identifiers of the jobs.
+      */
+    removeMany(queue: string, ids: string[]): Promise<any>;
     /**
      * Creates a handler for a given queue that receives the job information.
      * @param {string} queue The type of job to listen for.
@@ -235,7 +265,6 @@ export class Swag {
      * @param {string} queue
      */
     stop(queue: string): Promise<void>;
-    #private;
 }
 declare namespace connections {
     export { postgres };

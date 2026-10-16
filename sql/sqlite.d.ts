@@ -13,6 +13,7 @@ export const init: "\nbegin;\n$2:line create schema if not exists $2:name;\ncrea
 export const vacuumTest: "";
 import { deleteSingle } from './postgres.js';
 import { deleteQueue } from './postgres.js';
+import { deleteMany } from './postgres.js';
 import { flush } from './postgres.js';
 import { insert } from './postgres.js';
-export { deleteSingle, deleteQueue, flush, insert };
+export { deleteSingle, deleteMany, deleteQueue, flush, insert };
